@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.dll
+
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Genome Data (large files)
+data_*/
+
+# Output folders
+output_*/
+
+# GUI Settings
+gui_settings.ini
+
+# OS generated files
+.DS_Store
+desktop.ini

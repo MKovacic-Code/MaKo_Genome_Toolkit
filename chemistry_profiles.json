@@ -1,0 +1,28 @@
+{
+  "vojc": {
+    "motifs": [
+      "AGCGAAGCGA:2"
+    ],
+    "motifs_forward": [],
+    "motifs_reverse": [],
+    "base_content": [
+      "G:40:60"
+    ],
+    "max_repeat": []
+  },
+  "g4_comp": {
+    "motifs": [
+      "G{2,4}N{1,4}G{2,4}N{15,45}G{2,4}N{1,4}G{2,4}:1"
+    ],
+    "motifs_forward": [],
+    "motifs_reverse": [],
+    "base_content": [],
+    "max_repeat": [
+      "G:5",
+      "C:5"
+    ],
+    "motif_self_comp": [
+      "G{2,4}N{1,4}G{2,4}N{15,45}G{2,4}N{1,4}G{2,4}:whole:10,30:0,6:G3,G4,G5"
+    ]
+  }
+}

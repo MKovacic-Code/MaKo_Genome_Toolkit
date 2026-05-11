@@ -1,0 +1,77 @@
+python scripts\scan_genome.py data\GCF_000001405.40\GCF_000001405.40_GRCh38.p14_genomic.fna --window 40 --threshold 0.75 --dipeptide RG --output hits.tsv
+
+python scripts\process_hits.py --hits hits.tsv --gff data\GRCh38_genes.gff --gpff data\GRCh38_protein.gpff --output-dir analysis
+
+python scripts\process_hits.py --hits hits.tsv --gff data\GRCh38_genes.gff --gpff data\GRCh38_protein.gpff --output-dir analysis
+
+python scripts\process_hits.py --hits hits2.tsv --gff data\GRCh38_genes.gff3 --gpff data\GRCh38_protein.gpff --output-dir analysis2
+
+
+python scripts\extract_overlap_sequences.py --annotations analysis\overlap_annotations.json --genome data\GCF_000001405.40\GCF_000001405.40_GRCh38.p14_genomic.fna --tsv-output analysis\extract_info\extract_overlap.tsv --txt-output analysis\extract_info\extract_overlap.txt --padding 40
+
+
+
+now also add an option to determine specific number of specific peptide and nucleotide sequences that have to be present in the search window. revert the gui style back to more basic one with a light theme. 
+
+modify the process script to process nucleotide results in a way to determine their G4hunter and G4boost scores and search for the belonging to specific genes based on annotated gene files, process found peptide sequences also with adding potential protein names. finally process script should again compare the nucleotide regions from both hit files and output an annotated overlap result files. always make separate hit files for nucleotide and peptides, and separated process files for both as well as additional process result for the comparison. 
+
+also add a new visual analysis script that can analyze both or only specific process outputs e.g. mapping of found oligonucleotide sequences to spefic regions of svg picture of human chromosomes, and also mapping the found peptides to specific regions of the chromosomes, with additional info provided like number of hits for specific chromosome, the found genes, etc. also output the result in txt and tsv files in specific output folder
+
+
+Genome scanner for nucleotide sequences in .fna FASTA genome file for only main chromosomal NC_0000 sequence lines and not other scaffold data starting with NW or NT
+Search for:
+- specify the search window in nucleotide lengths
+- nucleotide sequence according to IUPAC nucleotide code, also specify the number of the provided sequences in the search window
+- specify the required minimum and maximum content in % for specific bases (e.g. G, C, T ,A)
+- specify the maximum number of consecutive repeats for specific bases (e.g. G, C, T ,A)
+- output should be provided in tab delimited .tsv and txt. files named nucleotide_hits
+
+
+
+Genome scanner for protein sequences
+
+
+Now I need a processing script called process_nucleotides.py that processes nucleotide_hits TXT OR TSV file (whatever is preferred and faster). It must calculate the G-quadruplex forming scores based on G4Hunter and G4Boost scripts, provide optimal oligonucleotide sequence for maximum G4Hunter/G4Boost scores, provide nucleotide composition info of the found oligonucleotide sequences (e.g. number of specific bases, GC% content, etc), provide score of codon efficiencies, find to which gene the sequence belongs based on provided gbff annotation data. The output should again be in txt and tsv files named nucleotide_hits_processed
+
+
+# Basic Wallace rule (very rough)
+
+# More accurate nearest-neighbor model (SantaLucia-like)
+
+GUI fixes
+
+Fix the GUI script and other corresponding ones so that:
+-add information on the output results on the time required for the run to finish
+-fix the space in peptide GUI tab, above the run script buttons
+-fix browse/open on the input files in the input/output tabs
+-fix so that when you want to browse for specific file, the folder that opens should already be the right data folder or output folder
+-only allow to open the files if they are present in the specified output directory (otherwise open/view buttons are not clickable)
+-window sequence highlighting doesn't work in view mode, fix so that it can represent colored text and text with colored background
+-add axis values to score summary of the Run G4/Thermo Analysis
+
+
+modify nt_sequence_search script in the next ways
+-add an option to choose which genome regions to analyze only chromosomes (lines starting with NC_0000) and/or scaffolds lines starting with  
+NT_ and NW_ identifiers in genome annotation files (GFF/GFF3, GBFF, etc.) that are GenBank/RefSeq accession prefixes that mark non-chromosomal or non-primary genomic scaffolds
+- nt_sequence_search - allow certain amount of mismatches (number defined by user - also in GUI)
+- add possibility to tick off/on which number of chromosome the script should analyze (23 is X and 24 is Y chromosome for human genome), all chromosomes are ticket for analysis by default
+
+modify peptide search script
+- fix multiprocessing and using of all cpu cores
+- add IUPAC sequence explanation for the amino acid motifs search under Peptide Coding Tab
+- add report only non-overlapping hits to the peptide search, add codon efficiency analysis to the peptide hits
+- add an option to define worker (cpu cores) number for the peptide_coding_search script, optimize it for parallel processing if it isn't already
+- allow certain amount of mismatches (number defined by user - also in GUI)
+
+VISUALIZATION SCRIPT
+
+-check localization on the chromosomes
+-check label options on chromosomes - not label, only gene name, gene name + location coordinates
+-change the name of the cromosomes from NC_0000 to Chromosome 1, Chromosome 2, etc to Chromosome X and Chromosome Y for 23 and 24 respectfully.
+-add view file option to the files under visualization tab
+
+
+
+best oligo i-motif/R-loop/hairpin/cpg not available
+
+fix extract gene list
