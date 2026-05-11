@@ -480,7 +480,24 @@ class ScannerGUI:
         )
         notebook = ttk.Notebook(content, style="GenomeNotebook.TNotebook")
         notebook.pack(fill=BOTH, expand=True, padx=10, pady=10)
-        notebook.bind("<<NotebookTabChanged>>", lambda e: self._run_file_picker_validators())
+        def _on_tab_change(event=None):
+            self._run_file_picker_validators()
+            current_tab_name = notebook.select()
+            for tab_name in notebook.tabs():
+                tab_widget = notebook.nametowidget(tab_name)
+                if tab_widget.winfo_children():
+                    wrapper = tab_widget.winfo_children()[0]
+                    if tab_name == current_tab_name:
+                        if hasattr(wrapper, "_pack_info"):
+                            wrapper.pack(**wrapper._pack_info)
+                    else:
+                        if not hasattr(wrapper, "_pack_info"):
+                            info = wrapper.pack_info()
+                            if info:
+                                wrapper._pack_info = {k: v for k, v in info.items() if k not in ['in']}
+                        wrapper.pack_forget()
+
+        notebook.bind("<<NotebookTabChanged>>", _on_tab_change)
 
         input_tab = Frame(notebook)
         notebook.add(input_tab, text="Inputs (Outputs)")
@@ -519,6 +536,7 @@ class ScannerGUI:
         )
 
         self._setup_sync_bindings()
+        _on_tab_change()
 
         # Run Log is now pinned to the bottom of the window (created above)
 
@@ -810,7 +828,7 @@ class ScannerGUI:
         ).pack(fill=BOTH, pady=(6, 0))
 
         outputs_section = LabelFrame(right_col, text="Workflow Output Files")
-        outputs_section.pack(fill=BOTH, expand=True, pady=(0, 10))
+        outputs_section.pack(fill="x", expand=False, pady=(0, 10))
         Label(
             outputs_section,
             text="Review or override the auto-filled output paths for each workflow stage.",
@@ -992,7 +1010,7 @@ class ScannerGUI:
         ).pack(anchor="w", pady=(0, 2))
 
         container = LabelFrame(right_col, text="Advanced Filters & Constraints")
-        container.pack(fill=BOTH, expand=True, pady=(0, 4))
+        container.pack(fill="x", expand=False, pady=(0, 4))
         
         motif_help = (
             "Motifs (PATTERN:COUNT per line). PATTERN may use IUPAC nucleotide codes "
@@ -1219,7 +1237,7 @@ class ScannerGUI:
         self._add_tab_banner(wrapper, heading, accent_color)
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
-        paned.pack(fill=BOTH, expand=True)
+        paned.pack(fill=BOTH, expand=False)
         left_col = Frame(paned)
         right_col = Frame(paned)
         paned.add(left_col, weight=1)
@@ -1354,7 +1372,7 @@ class ScannerGUI:
             ).grid(row=idx // 3, column=idx % 3, sticky="w", padx=6, pady=2)
 
         motif_section = LabelFrame(right_col, text="Motif Filters")
-        motif_section.pack(fill=BOTH, expand=True, pady=(0, 10))
+        motif_section.pack(fill="x", expand=False, pady=(0, 10))
         Label(
             motif_section,
             text="Specify IUPAC amino acid motifs (one per line). All matching windows are reported.",
@@ -1443,7 +1461,7 @@ class ScannerGUI:
 
         # Left Column: NT Parameters
         nt_section = LabelFrame(left_col, text="Nucleotide Search Parameters")
-        nt_section.pack(fill=BOTH, pady=(0, 10), padx=(0, 5), expand=True)
+        nt_section.pack(fill="x", pady=(0, 10), padx=(0, 5), expand=False)
         
         nt_help_text = (
             "IUPAC Nucleotide Codes:\n\n"
@@ -1464,7 +1482,7 @@ class ScannerGUI:
 
         # Right Column: Peptide Parameters
         pep_section = LabelFrame(right_col, text="Peptide Search Parameters")
-        pep_section.pack(fill=BOTH, pady=(0, 10), padx=(5, 0), expand=True)
+        pep_section.pack(fill="x", pady=(0, 10), padx=(5, 0), expand=False)
         
         pep_help_text = (
             "IUPAC Amino Acid Codes:\n\n"
@@ -1678,7 +1696,7 @@ class ScannerGUI:
         self.split_button.pack(fill=BOTH, pady=(6, 0))
 
         scoring = LabelFrame(right_col, text="RNA Scoring, Annotation & Genes")
-        scoring.pack(fill=BOTH, expand=True, pady=(0, 10))
+        scoring.pack(fill="x", expand=False, pady=(0, 10))
         Label(
             scoring,
             text="Score RNA windows, annotate triplex hits, and extract overlapping genes.",
