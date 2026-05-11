@@ -20,8 +20,8 @@ MaKo Genome Toolkit is a powerful, high-performance suite for searching and anal
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/MaKo-Genome-Toolkit.git
-   cd MaKo-Genome-Toolkit
+   git clone https://github.com/MKovacic-Code/MaKo_Genome_Toolkit.git
+   cd MaKo_Genome_Toolkit
    ```
 
 2. **Create a virtual environment (recommended)**:
@@ -60,7 +60,7 @@ You can download genome assemblies from sources like:
 ### Organizing Data
 For the toolkit to automatically discover genomes, place them in directories named with the prefix `data_` in the project root. For example:
 ```
-MaKo-Genome-Toolkit/
+MaKo_Genome_Toolkit/
 ├── data_human_hg38/
 │   └── GRCh38.fna
 ├── nucleotide_gui.pyw
