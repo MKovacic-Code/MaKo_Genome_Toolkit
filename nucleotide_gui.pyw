@@ -738,7 +738,7 @@ class ScannerGUI:
 
     def _build_input_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
-        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        wrapper.pack(fill="x", expand=False, padx=10, pady=10)
 
         self._add_tab_banner(wrapper, heading, accent_color)
 
@@ -949,7 +949,7 @@ class ScannerGUI:
         self._add_tab_banner(wrapper, heading, accent_color)
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
-        paned.pack(fill=BOTH, expand=True)
+        paned.pack(fill=BOTH, expand=False)
         left_col = Frame(paned)
         right_col = Frame(paned)
         paned.add(left_col, weight=1)
@@ -1233,7 +1233,7 @@ class ScannerGUI:
 
     def _build_analysis_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
-        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        wrapper.pack(fill="x", expand=False, padx=10, pady=10)
         self._add_tab_banner(wrapper, heading, accent_color)
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
@@ -1309,11 +1309,11 @@ class ScannerGUI:
 
     def _build_peptide_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
-        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        wrapper.pack(fill="x", expand=False, padx=10, pady=10)
         self._add_tab_banner(wrapper, heading, accent_color)
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
-        paned.pack(fill=BOTH, expand=True)
+        paned.pack(fill=BOTH, expand=False)
         left_col = Frame(paned)
         right_col = Frame(paned)
         paned.add(left_col, weight=3)
@@ -1437,7 +1437,7 @@ class ScannerGUI:
 
     def _build_combined_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
-        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        wrapper.pack(fill="x", expand=False, padx=10, pady=10)
         self._add_tab_banner(wrapper, heading, accent_color)
 
         Label(
@@ -1453,7 +1453,7 @@ class ScannerGUI:
         ).pack(anchor="w", pady=(5, 10))
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
-        paned.pack(fill=BOTH, expand=True)
+        paned.pack(fill=BOTH, expand=False)
         left_col = Frame(paned)
         right_col = Frame(paned)
         paned.add(left_col, weight=1)
@@ -1548,12 +1548,12 @@ class ScannerGUI:
 
     def _build_triplex_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
-        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        wrapper.pack(fill="x", expand=False, padx=10, pady=10)
 
         self._add_tab_banner(wrapper, heading, accent_color)
 
         paned = ttk.Panedwindow(wrapper, orient="horizontal")
-        paned.pack(fill=BOTH, expand=True)
+        paned.pack(fill=BOTH, expand=False)
         left_col = Frame(paned)
         right_col = Frame(paned)
         paned.add(left_col, weight=3)
