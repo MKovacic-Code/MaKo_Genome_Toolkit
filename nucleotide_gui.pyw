@@ -1534,6 +1534,11 @@ class ScannerGUI:
         self._add_labeled_entry(row_f, "Window (nt):", self.window_var, 10)
         self._add_labeled_entry(row_f, "Step (nt):", self.step_var, 10)
         self._add_labeled_entry(row_f, "Workers (0=all):", self.workers_var, 10)
+        Checkbutton(
+            row_f,
+            text="Non-overlapping",
+            variable=self.non_overlapping_var,
+        ).pack(side=LEFT, padx=10)
         
         row_c = Frame(param_section)
         row_c.pack(fill=X, padx=5, pady=(0, 5))
@@ -2868,6 +2873,8 @@ class ScannerGUI:
         
         if self.require_palindrome_var.get():
             cmd.append("--require-palindrome")
+        if self.non_overlapping_var.get():
+            cmd.append("--non-overlapping")
             pal_min = self.palindrome_min_len_var.get().strip()
             if pal_min:
                 cmd.extend(["--palindrome-min-len", pal_min])

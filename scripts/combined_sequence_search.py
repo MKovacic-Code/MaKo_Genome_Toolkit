@@ -141,7 +141,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=config["non_overlapping"],
+            non_overlapping=False, # We filter non-overlapping at the end of combined search
             candidate_positions=None,
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
@@ -165,7 +165,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=config["non_overlapping"],
+            non_overlapping=False, # We filter non-overlapping at the end of combined search
             candidate_positions=None,
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
@@ -185,7 +185,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=config["non_overlapping"],
+            non_overlapping=False, # We filter non-overlapping at the end of combined search
             candidate_positions=None,
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
@@ -291,6 +291,26 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             
     return seq_id, combined_hits
 
+def filter_non_overlapping(hits: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    """Greedily filter hits to ensure no genomic overlap within each sequence."""
+    if not hits: return []
+    # Sort by sequence_id, then start
+    hits.sort(key=lambda x: (str(x["sequence_id"]), int(x["window_start"])))
+    
+    final_hits = []
+    last_end = {} # sequence_id -> last_end
+    
+    for hit in hits:
+        sid = hit["sequence_id"]
+        start = int(hit["window_start"])
+        end = int(hit["window_end"])
+        
+        if sid not in last_end or start > last_end[sid]:
+            final_hits.append(hit)
+            last_end[sid] = end
+            
+    return final_hits
+
 def main():
     args = parse_args()
     parser = argparse.ArgumentParser()
@@ -379,15 +399,20 @@ def main():
                 all_hits.extend(hits)
                 print(f"[scanner] Completed sequence {index}/{len(sequences)}")
                 
+    if args.non_overlapping:
+        print(f"[scanner] Filtering {len(all_hits)} hits for non-overlapping regions...")
+        all_hits = filter_non_overlapping(all_hits)
+                
     if not all_hits:
         print("No hits found.")
         return 0
         
     headers = [
-        "sequence_id", "nt_strand", "window_start", "window_end", "window_sequence",
-        "nt_motif_sequence", "nt_motif_hits", "pep_frame", "peptide_sequence", 
+        "sequence_id", "nt_strand", "window_start", "window_end", 
+        "nt_subwindow_start", "nt_subwindow_end", "nt_motif_hits", "nt_base_content", "nt_max_repeats",
+        "pep_subwindow_start", "pep_subwindow_end", "pep_frame", "peptide_sequence", 
         "matched_pep_motifs", "codon_efficiency", "is_self_complementary",
-        "palindrome_hairpin_sequence", "palindrome_hairpin_length"
+        "palindrome_hairpin_sequence", "palindrome_hairpin_length", "pep_subwindow_sequence", "window_sequence"
     ]
     
     with out_path.open("w", newline="", encoding="utf-8") as f:
@@ -396,17 +421,40 @@ def main():
         for hit in all_hits:
             row = hit.copy()
             row["nt_strand"] = hit.get("strand", "")
-            row["nt_motif_sequence"] = hit.get("motif_sequence", "")
+            
+            # Subwindow relative positions
+            w_start = int(hit["window_start"])
+            w_strand = hit["strand"]
+            
+            # Map subwindow coords relative to overall window
+            if w_strand == "+":
+                row["nt_subwindow_start"] = w_start + config["nt_sub_offset"]
+                row["nt_subwindow_end"] = row["nt_subwindow_start"] + config["nt_sub_window"] - 1
+                row["pep_subwindow_start"] = w_start + config["pep_sub_offset"]
+                row["pep_subwindow_end"] = row["pep_subwindow_start"] + config["pep_sub_window"] - 1
+            else:
+                # In reverse strand, overall window is [w_start, w_end].
+                # The sub-sequence was extracted from the RC sequence.
+                # So the start of RC subwindow is mapped from the end of the genome subwindow.
+                row["nt_subwindow_end"] = int(hit["window_end"]) - config["nt_sub_offset"]
+                row["nt_subwindow_start"] = row["nt_subwindow_end"] - config["nt_sub_window"] + 1
+                row["pep_subwindow_end"] = int(hit["window_end"]) - config["pep_sub_offset"]
+                row["pep_subwindow_start"] = row["pep_subwindow_end"] - config["pep_sub_window"] + 1
             
             if "motif_hits" in row and row["motif_hits"]:
-                row["nt_motif_hits"] = ",".join(f"{k}={v}" for k, v in row["motif_hits"])
+                row["nt_motif_hits"] = ", ".join(f"{k}({v})" for k, v in row["motif_hits"])
             else:
                 row["nt_motif_hits"] = ""
                 
             if "matched_pep_motifs" in row and row["matched_pep_motifs"]:
-                row["matched_pep_motifs"] = ",".join(f"{k}={v}" for k, v in row["matched_pep_motifs"])
+                row["matched_pep_motifs"] = ", ".join(f"{k}({mm}mm)" for k, mm in row["matched_pep_motifs"])
             else:
                 row["matched_pep_motifs"] = ""
+                
+            if "base_percentages" in row and row["base_percentages"]:
+                row["nt_base_content"] = ", ".join(f"{b}={p:.1f}%" for b, p in row["base_percentages"])
+            if "max_runs" in row and row["max_runs"]:
+                row["nt_max_repeats"] = ", ".join(f"{b}={r}" for b, r in row["max_runs"])
                 
             writer.writerow(row)
             
