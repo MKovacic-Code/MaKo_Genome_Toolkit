@@ -50,7 +50,27 @@ SCRIPTS_DIR = ROOT_DIR / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-DATA_DIR_PREFIX = "data_"
+# Tool-tab analysis imports (guarded so GUI still loads if a script is missing)
+try:
+    from nt_sequence_G4_TD_analysis import (
+        g4hunter_score as _g4hunter_score,
+        g4boost_score as _g4boost_score,
+        base_composition as _base_composition,
+        tm_wallace as _tm_wallace,
+        tm_nearest_neighbor as _tm_nearest_neighbor,
+        calc_codon_efficiency as _calc_codon_efficiency,
+        i_motif_score as _i_motif_score,
+        r_loop_score as _r_loop_score,
+        hairpin_score as _hairpin_score,
+        cpg_island_score as _cpg_island_score,
+        CODON_WEIGHTS as _CODON_WEIGHTS,
+        reverse_complement as _reverse_complement,
+    )
+    from peptide_coding_search import translate_sequence as _translate_sequence, CODON_TABLE as _CODON_TABLE
+    _TOOLS_AVAILABLE = True
+except Exception:
+    _TOOLS_AVAILABLE = False
+
 DEFAULT_DATA_DIR_NAME = "data_human_homo_sapiens"
 PROFILE_STORE_PATH = ROOT_DIR / "chemistry_profiles.json"
 BUILTIN_CHEMISTRY_PROFILES = {
@@ -131,6 +151,7 @@ TAB_ACCENTS = {
     "peptide": "#b45309",
     "triplex": "#7c3aed",
     "viz": "#f97316",
+    "tools": "#059669",
 }
 
 
@@ -420,6 +441,18 @@ class ScannerGUI:
             var.trace_add("write", persist_cb)
         self.triplex_input_mode_var.trace_add("write", lambda *_: self._update_triplex_input_mode())
 
+        # Tools tab variables
+        self.tool_g4_input_var = StringVar()
+        self.tool_g4_window_var = StringVar(value="25")
+        self.tool_codon_input_var = StringVar()
+        self.tool_translate_input_var = StringVar()
+        self.tool_thermo_input_var = StringVar()
+        self.tool_thermo_dna_conc_var = StringVar(value="0.001")
+        self.tool_thermo_salt_conc_var = StringVar(value="0.15")
+        self.tool_mutator_input_var = StringVar()
+        self.tool_mutator_target_var = StringVar(value="1.5")
+        self.tool_mutator_max_mut_var = StringVar(value="5")
+
         self.status_var = StringVar(value="Idle")
         self.status_label = None
         self.status_progress = None
@@ -545,6 +578,10 @@ class ScannerGUI:
         self._build_visualization_tab(
             viz_tab, "Visualization", TAB_ACCENTS["viz"]
         )
+
+        tools_tab = Frame(notebook)
+        notebook.add(tools_tab, text="Tools")
+        self._build_tools_tab(tools_tab, "Sequence Tools", TAB_ACCENTS["tools"])
 
         self._setup_sync_bindings()
         _on_tab_change()
@@ -2016,6 +2053,339 @@ class ScannerGUI:
             text="View SVG",
             command=lambda: self._open_path_default(self.vector_output_var.get()),
         ).pack(fill=BOTH, pady=(6, 0))
+
+    def _build_tools_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
+        canvas = Canvas(parent, highlightthickness=0)
+        v_scroll = Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scroll_frame = Frame(canvas)
+        
+        scroll_frame.bind(
+            "<Configure>",
+            lambda _: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=v_scroll.set)
+        
+        v_scroll.pack(side=RIGHT, fill=Y)
+        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        
+        wrapper = Frame(scroll_frame)
+        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        self._add_tab_banner(wrapper, heading, accent_color)
+        
+        if not _TOOLS_AVAILABLE:
+            Label(wrapper, text="Analysis scripts (nt_sequence_G4_TD_analysis.py) not found. Tools tab disabled.", fg="red").pack(pady=20)
+            return
+
+        # 1. G4Hunter Scorer
+        g4_frame, g4_content = self._make_collapsible_tool(wrapper, "G4Hunter Scorer")
+        Label(g4_content, text="NT Sequence:").pack(anchor="w")
+        g4_text = scrolledtext.ScrolledText(g4_content, height=4, width=60)
+        g4_text.pack(fill=X, pady=(0, 6))
+        row = Frame(g4_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "Window Size:", self.tool_g4_window_var, 6)
+        Button(row, text="Run Analysis", command=lambda: self._run_g4hunter_tool(g4_text, g4_results)).pack(side=LEFT, padx=10)
+        g4_results = scrolledtext.ScrolledText(g4_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        g4_results.pack(fill=X, pady=6)
+        Button(g4_content, text="Save Results", command=lambda: self._save_tool_results(g4_results)).pack(anchor="e")
+
+        # 2. Codon Optimizer
+        codon_frame, codon_content = self._make_collapsible_tool(wrapper, "Codon Optimizer")
+        Label(codon_content, text="Input NT or Peptide Sequence:").pack(anchor="w")
+        codon_text = scrolledtext.ScrolledText(codon_content, height=4, width=60)
+        codon_text.pack(fill=X, pady=(0, 6))
+        Button(codon_content, text="Optimize Sequence", command=lambda: self._run_codon_optimizer_tool(codon_text, codon_results)).pack(anchor="w")
+        codon_results = scrolledtext.ScrolledText(codon_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        codon_results.pack(fill=X, pady=6)
+        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(anchor="e")
+
+        # 3. 6-Frame Translator
+        trans_frame, trans_content = self._make_collapsible_tool(wrapper, "6-Frame Translator")
+        Label(trans_content, text="NT Sequence:").pack(anchor="w")
+        trans_text = scrolledtext.ScrolledText(trans_content, height=4, width=60)
+        trans_text.pack(fill=X, pady=(0, 6))
+        Button(trans_content, text="Translate All Frames", command=lambda: self._run_translator_tool(trans_text, trans_results)).pack(anchor="w")
+        trans_results = scrolledtext.ScrolledText(trans_content, height=12, width=60, state="disabled", bg="#f8f9fa")
+        trans_results.pack(fill=X, pady=6)
+        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(anchor="e")
+
+        # 4. Thermodynamic Analyzer
+        thermo_frame, thermo_content = self._make_collapsible_tool(wrapper, "Thermodynamic Analyzer")
+        Label(thermo_content, text="NT Sequence:").pack(anchor="w")
+        thermo_text = scrolledtext.ScrolledText(thermo_content, height=4, width=60)
+        thermo_text.pack(fill=X, pady=(0, 6))
+        row = Frame(thermo_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "DNA Conc (M):", self.tool_thermo_dna_conc_var, 8)
+        self._add_labeled_entry(row, "Salt Conc (M):", self.tool_thermo_salt_conc_var, 8)
+        Button(row, text="Analyze Properties", command=lambda: self._run_thermo_tool(thermo_text, thermo_results)).pack(side=LEFT, padx=10)
+        thermo_results = scrolledtext.ScrolledText(thermo_content, height=10, width=60, state="disabled", bg="#f8f9fa")
+        thermo_results.pack(fill=X, pady=6)
+        Button(thermo_content, text="Save Results", command=lambda: self._save_tool_results(thermo_results)).pack(anchor="e")
+
+        # 5. G4 Mutation Optimizer
+        mut_frame, mut_content = self._make_collapsible_tool(wrapper, "G4 Mutation Optimizer")
+        Label(mut_content, text="NT Sequence:").pack(anchor="w")
+        mut_text = scrolledtext.ScrolledText(mut_content, height=4, width=60)
+        mut_text.pack(fill=X, pady=(0, 6))
+        row = Frame(mut_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "Target G4 Score:", self.tool_mutator_target_var, 6)
+        self._add_labeled_entry(row, "Max Mutations:", self.tool_mutator_max_mut_var, 6)
+        Button(row, text="Optimize G4", command=lambda: self._run_g4_mutator_tool(mut_text, mut_results)).pack(side=LEFT, padx=10)
+        mut_results = scrolledtext.ScrolledText(mut_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        mut_results.pack(fill=X, pady=6)
+        Button(mut_content, text="Save Results", command=lambda: self._save_tool_results(mut_results)).pack(anchor="e")
+
+    def _make_collapsible_tool(self, parent: Frame, title: str) -> Tuple[LabelFrame, Frame]:
+        lf = LabelFrame(parent, text=f" ▶ {title}", font=("Segoe UI", 10, "bold"), labelanchor="nw")
+        lf.pack(fill=X, pady=5)
+        
+        content = Frame(lf, padx=10, pady=10)
+        content.pack(fill=X)
+        
+        is_expanded = [True]
+        
+        def toggle():
+            if is_expanded[0]:
+                content.pack_forget()
+                lf.configure(text=f" ◀ {title}")
+                is_expanded[0] = False
+            else:
+                content.pack(fill=X)
+                lf.configure(text=f" ▶ {title}")
+                is_expanded[0] = True
+        
+        # Click on the LabelFrame title? Use a small button for reliability
+        btn_row = Frame(lf)
+        # We can't easily put it in the label bar of a LabelFrame in pure Tkinter without hacks
+        # So we'll just put a tiny button at the top of content or better, as a separate header button
+        
+        # Actually, let's use a trick: bind click to the LabelFrame label if possible.
+        # But simpler: just add a toggle button inside the frame at the top.
+        Button(content, text="Collapse", command=toggle, font=("Segoe UI", 8)).pack(anchor="ne")
+        
+        return lf, content
+
+    def _save_tool_results(self, text_widget: scrolledtext.ScrolledText) -> None:
+        content = text_widget.get("1.0", END).strip()
+        if not content:
+            return
+        
+        path = filedialog.asksaveasfilename(
+            defaultextension=".tsv",
+            filetypes=[("TSV files", "*.tsv"), ("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+            
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            messagebox.showinfo("Success", f"Results saved to {path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save results: {e}")
+
+    def _run_g4hunter_tool(self, input_widget, output_widget) -> None:
+        seq = input_widget.get("1.0", END).strip().upper()
+        if not seq: return
+        
+        try:
+            w_size = int(self.tool_g4_window_var.get())
+        except: w_size = 25
+        
+        g4h = _g4hunter_score(seq, w_size)
+        g4b = _g4boost_score(seq)
+        counts, gc_pct = _base_composition(seq)
+        
+        res = []
+        res.append(f"G4Hunter Score (window={w_size}): {g4h:.4f}")
+        res.append(f"G4Boost Score: {g4b:.4f}")
+        res.append(f"GC Content: {gc_pct:.2f}%")
+        res.append(f"Base Counts: {', '.join(f'{b}={c}' for b, c in counts.items())}")
+        res.append("\nSequence:")
+        res.append(seq)
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_codon_optimizer_tool(self, input_widget, output_widget) -> None:
+        raw_input = input_widget.get("1.0", END).strip()
+        if not raw_input: return
+        
+        # Check if peptide or NT
+        is_peptide = any(c not in "ACGTUNacgtun \n\r\t" for c in raw_input)
+        
+        optimized = []
+        if is_peptide:
+            # Reverse translate using best codons
+            # We need a reverse codon map
+            rev_map = {}
+            for codon, aa in _CODON_TABLE.items():
+                weight = _CODON_WEIGHTS.get(codon, 0.0)
+                if aa not in rev_map or weight > rev_map[aa][1]:
+                    rev_map[aa] = (codon, weight)
+            
+            pep = "".join(raw_input.split()).upper()
+            for aa in pep:
+                if aa in rev_map:
+                    optimized.append(rev_map[aa][0])
+                else:
+                    optimized.append("???")
+            opt_seq = "".join(optimized)
+        else:
+            # Re-encode NT sequence
+            nt = "".join(raw_input.split()).upper().replace("U", "T")
+            # Best synonyms for each AA
+            best_synonyms = {}
+            for codon, aa in _CODON_TABLE.items():
+                weight = _CODON_WEIGHTS.get(codon, 0.0)
+                if aa not in best_synonyms or weight > best_synonyms[aa][1]:
+                    best_synonyms[aa] = (codon, weight)
+            
+            for i in range(0, len(nt) - 2, 3):
+                codon = nt[i:i+3]
+                aa = _CODON_TABLE.get(codon)
+                if aa and aa in best_synonyms:
+                    optimized.append(best_synonyms[aa][0])
+                else:
+                    optimized.append(codon)
+            opt_seq = "".join(optimized)
+            
+        cai_before = _calc_codon_efficiency(raw_input) if not is_peptide else 0.0
+        cai_after = _calc_codon_efficiency(opt_seq)
+        
+        res = []
+        res.append(f"Input Type: {'Peptide' if is_peptide else 'Nucleotide'}")
+        if not is_peptide:
+            res.append(f"Codon Efficiency (CAI) Before: {cai_before:.4f}")
+        res.append(f"Codon Efficiency (CAI) After: {cai_after:.4f}")
+        res.append("\nOptimized Sequence:")
+        res.append(opt_seq)
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_translator_tool(self, input_widget, output_widget) -> None:
+        nt = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not nt: return
+        
+        rc = _reverse_complement(nt)
+        
+        res = []
+        res.append("--- Forward Frames ---")
+        for f in range(3):
+            pep = _translate_sequence(nt[f:])
+            res.append(f"Frame +{f}: {pep}")
+            
+        res.append("\n--- Reverse Frames ---")
+        for f in range(3):
+            pep = _translate_sequence(rc[f:])
+            res.append(f"Frame -{f}: {pep}")
+            
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_thermo_tool(self, input_widget, output_widget) -> None:
+        seq = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not seq: return
+        
+        try:
+            conc = float(self.tool_thermo_dna_conc_var.get())
+            salt = float(self.tool_thermo_salt_conc_var.get())
+        except:
+            conc, salt = 0.001, 0.15
+            
+        tm_w = _tm_wallace(seq)
+        tm_nn, dh, ds = _tm_nearest_neighbor(seq, conc, salt)
+        counts, gc_pct = _base_composition(seq)
+        
+        res = []
+        res.append(f"Length: {len(seq)} bp")
+        res.append(f"GC Content: {gc_pct:.2f}%")
+        res.append(f"Tm (Wallace): {tm_w:.1f} °C")
+        res.append(f"Tm (Nearest-Neighbor): {tm_nn:.2f} °C")
+        res.append(f"Delta H: {dh:.2f} kcal/mol")
+        res.append(f"Delta S: {ds:.2f} cal/mol*K")
+        res.append("\n--- Structural Scores ---")
+        res.append(f"i-Motif Score: {_i_motif_score(seq):.4f}")
+        res.append(f"R-Loop Score: {_r_loop_score(seq):.4f}")
+        res.append(f"Hairpin Score: {_hairpin_score(seq):.4f}")
+        res.append(f"CpG Island Score: {_cpg_island_score(seq):.4f}")
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_g4_mutator_tool(self, input_widget, output_widget) -> None:
+        seq = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not seq: return
+        
+        try:
+            target = float(self.tool_mutator_target_var.get())
+            max_mut = int(self.tool_mutator_max_mut_var.get())
+            w_size = int(self.tool_g4_window_var.get())
+        except:
+            target, max_mut, w_size = 1.5, 5, 25
+            
+        current_seq = list(seq)
+        current_score = _g4hunter_score("".join(current_seq), w_size)
+        mutations = []
+        
+        # Greedy optimization
+        for _ in range(max_mut):
+            if current_score >= target:
+                break
+                
+            best_mut = None
+            best_new_score = current_score
+            
+            # Try mutation at each position to a G (since we want to increase G4 score usually)
+            # Actually, G4Hunter score is boosted by G runs and decreased by C runs.
+            for i in range(len(current_seq)):
+                orig = current_seq[i]
+                if orig == 'G': continue
+                
+                for alt in ['G', 'A', 'T']: # Swapping to G is best, but others might help if we are swapping away from C
+                    if alt == orig: continue
+                    current_seq[i] = alt
+                    new_score = _g4hunter_score("".join(current_seq), w_size)
+                    if new_score > best_new_score:
+                        best_new_score = new_score
+                        best_mut = (i, orig, alt)
+                    current_seq[i] = orig
+            
+            if best_mut:
+                idx, o, a = best_mut
+                current_seq[idx] = a
+                current_score = best_new_score
+                mutations.append(f"Pos {idx+1}: {o} -> {a} (New Score: {current_score:.4f})")
+            else:
+                break
+                
+        res = []
+        res.append(f"Original Score: {_g4hunter_score(seq, w_size):.4f}")
+        res.append(f"Final Score: {current_score:.4f}")
+        res.append(f"Mutations Applied: {len(mutations)}")
+        res.append("\n".join(mutations))
+        res.append("\nOptimized Sequence:")
+        res.append("".join(current_seq))
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+
 
     def _add_vector_custom_row(self, parent: Frame, preset_var: StringVar | None = None) -> None:
         include_var = BooleanVar(value=not self.vector_custom_rows)
