@@ -2069,14 +2069,14 @@ class ScannerGUI:
         )
         self.vector_viz_button = Button(
             output_frame,
-            text="Render Chromosome SVG",
+            text="Render Publication Plot",
             command=self.run_vector_visualization,
             height=2,
         )
         self.vector_viz_button.pack(fill=BOTH, pady=(12, 0))
         Button(
             output_frame,
-            text="View SVG",
+            text="View Result File",
             command=lambda: self._open_path_default(self.vector_output_var.get()),
         ).pack(fill=BOTH, pady=(6, 0))
 
@@ -2115,7 +2115,8 @@ class ScannerGUI:
         Button(row, text="Run Analysis", command=lambda: self._run_g4hunter_tool(g4_text, g4_results)).pack(side=LEFT, padx=10)
         g4_results = scrolledtext.ScrolledText(g4_content, height=8, width=60, state="disabled", bg="#f8f9fa")
         g4_results.pack(fill=X, pady=6)
-        Button(g4_content, text="Save Results", command=lambda: self._save_tool_results(g4_results)).pack(anchor="e")
+        Button(g4_content, text="Save Results", command=lambda: self._save_tool_results(g4_results)).pack(side=RIGHT, padx=2)
+        Button(g4_content, text="Copy Results", command=lambda: self._copy_tool_results(g4_results)).pack(side=RIGHT, padx=2)
 
         # 2. Codon Optimizer
         codon_frame, codon_content = self._make_collapsible_tool(wrapper, "Codon Optimizer")
@@ -2125,7 +2126,8 @@ class ScannerGUI:
         Button(codon_content, text="Optimize Sequence", command=lambda: self._run_codon_optimizer_tool(codon_text, codon_results)).pack(anchor="w")
         codon_results = scrolledtext.ScrolledText(codon_content, height=8, width=60, state="disabled", bg="#f8f9fa")
         codon_results.pack(fill=X, pady=6)
-        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(anchor="e")
+        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(side=RIGHT, padx=2)
+        Button(codon_content, text="Copy Results", command=lambda: self._copy_tool_results(codon_results)).pack(side=RIGHT, padx=2)
 
         # 3. 6-Frame Translator
         trans_frame, trans_content = self._make_collapsible_tool(wrapper, "6-Frame Translator")
@@ -2135,7 +2137,8 @@ class ScannerGUI:
         Button(trans_content, text="Translate All Frames", command=lambda: self._run_translator_tool(trans_text, trans_results)).pack(anchor="w")
         trans_results = scrolledtext.ScrolledText(trans_content, height=12, width=60, state="disabled", bg="#f8f9fa")
         trans_results.pack(fill=X, pady=6)
-        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(anchor="e")
+        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(side=RIGHT, padx=2)
+        Button(trans_content, text="Copy Results", command=lambda: self._copy_tool_results(trans_results)).pack(side=RIGHT, padx=2)
 
         # 4. Thermodynamic Analyzer
         thermo_frame, thermo_content = self._make_collapsible_tool(wrapper, "Thermodynamic Analyzer")
@@ -2149,7 +2152,8 @@ class ScannerGUI:
         Button(row, text="Analyze Properties", command=lambda: self._run_thermo_tool(thermo_text, thermo_results)).pack(side=LEFT, padx=10)
         thermo_results = scrolledtext.ScrolledText(thermo_content, height=10, width=60, state="disabled", bg="#f8f9fa")
         thermo_results.pack(fill=X, pady=6)
-        Button(thermo_content, text="Save Results", command=lambda: self._save_tool_results(thermo_results)).pack(anchor="e")
+        Button(thermo_content, text="Save Results", command=lambda: self._save_tool_results(thermo_results)).pack(side=RIGHT, padx=2)
+        Button(thermo_content, text="Copy Results", command=lambda: self._copy_tool_results(thermo_results)).pack(side=RIGHT, padx=2)
 
         # 5. G4 Mutation Optimizer
         mut_frame, mut_content = self._make_collapsible_tool(wrapper, "G4 Mutation Optimizer")
@@ -2163,7 +2167,8 @@ class ScannerGUI:
         Button(row, text="Optimize G4", command=lambda: self._run_g4_mutator_tool(mut_text, mut_results)).pack(side=LEFT, padx=10)
         mut_results = scrolledtext.ScrolledText(mut_content, height=8, width=60, state="disabled", bg="#f8f9fa")
         mut_results.pack(fill=X, pady=6)
-        Button(mut_content, text="Save Results", command=lambda: self._save_tool_results(mut_results)).pack(anchor="e")
+        Button(mut_content, text="Save Results", command=lambda: self._save_tool_results(mut_results)).pack(side=RIGHT, padx=2)
+        Button(mut_content, text="Copy Results", command=lambda: self._copy_tool_results(mut_results)).pack(side=RIGHT, padx=2)
 
     def _make_collapsible_tool(self, parent: Frame, title: str) -> Tuple[LabelFrame, Frame]:
         lf = LabelFrame(parent, text=f" ▶ {title}", font=("Segoe UI", 10, "bold"), labelanchor="nw")
@@ -2195,6 +2200,15 @@ class ScannerGUI:
         
         return lf, content
 
+    def _copy_tool_results(self, text_widget: scrolledtext.ScrolledText) -> None:
+        content = text_widget.get("1.0", END).strip()
+        if not content:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(content)
+        self.root.update()
+        # Optionally show a status message if you want
+        
     def _save_tool_results(self, text_widget: scrolledtext.ScrolledText) -> None:
         content = text_widget.get("1.0", END).strip()
         if not content:
@@ -2825,6 +2839,78 @@ class ScannerGUI:
         search_entry.bind("<Return>", apply_search)
         Button(search_frame, text="Apply", command=apply_search).pack(side=LEFT, padx=(0, 4))
         Button(search_frame, text="Copy Selected", command=copy_selected).pack(side=LEFT)
+
+        # Selection and Clipboard Extensions
+        last_cell = {"val": None}
+
+        def on_tree_click(event):
+            region = tree.identify_region(event.x, event.y)
+            if region == "cell":
+                row_id = tree.identify_row(event.y)
+                col_id = tree.identify_column(event.x)
+                try:
+                    col_idx = int(col_id.replace("#", "")) - 1
+                    item_data = tree.item(row_id)
+                    values = item_data.get("values", [])
+                    if 0 <= col_idx < len(values):
+                        val = values[col_idx]
+                        last_cell["val"] = val
+                        status_label.config(text=f"Cell: {val}")
+                except (ValueError, IndexError):
+                    pass
+
+        def copy_cell():
+            if last_cell["val"] is not None:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(str(last_cell["val"]))
+                self.root.update()
+                status_label.config(text=f"Copied cell: {last_cell['val']}")
+
+        def copy_all():
+            lines = ["\t".join(headers)]
+            for row in display_rows:
+                lines.append("\t".join(str(c) for c in row))
+            self.root.clipboard_clear()
+            self.root.clipboard_append("\n".join(lines))
+            self.root.update()
+            status_label.config(text=f"Copied entire table ({len(display_rows)} rows) to clipboard.")
+
+        def show_context_menu(event):
+            # Update cell under cursor before showing
+            row_id = tree.identify_row(event.y)
+            col_id = tree.identify_column(event.x)
+            if row_id and col_id:
+                try:
+                    col_idx = int(col_id.replace("#", "")) - 1
+                    values = tree.item(row_id).get("values", [])
+                    if 0 <= col_idx < len(values):
+                        last_cell["val"] = values[col_idx]
+                except: pass
+
+            menu = Menu(top, tearoff=0)
+            if last_cell["val"] is not None:
+                menu.add_command(label=f"Copy Cell '{last_cell['val']}'", command=copy_cell)
+            
+            sel = tree.selection()
+            if sel:
+                menu.add_command(label=f"Copy Selected Rows ({len(sel)})", command=copy_selected)
+            
+            menu.add_separator()
+            menu.add_command(label="Copy Whole Table", command=copy_all)
+            menu.post(event.x_root, event.y_root)
+
+        def ctrl_c_handler(event=None):
+            if len(tree.selection()) > 1:
+                copy_selected()
+            elif last_cell["val"] is not None:
+                copy_cell()
+            else:
+                copy_selected()
+
+        tree.bind("<Button-1>", on_tree_click, add="+")
+        tree.bind("<Control-c>", ctrl_c_handler)
+        tree.bind("<Button-3>", show_context_menu) # Win/Linux
+        tree.bind("<Button-2>", show_context_menu) # macOS
 
     def _open_path_default(self, path: str) -> None:
         path = (path or "").strip()
