@@ -212,12 +212,17 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
         nt_start_in_scan = hit["window_start"]
         seq_len = len(sequence)
         
+        # For combined strand, the hit already uses genome coords directly
+        if strand == "combined":
+            scanned_seq = sequence
+        elif strand == "-":
+            scanned_seq = reverse_complement(sequence)
+        else:
+            scanned_seq = sequence
+        
         # Candidate overall window start relative to the scanned sequence (RC'd if strand is -)
         can_overall_start = nt_start_in_scan - nt_sub_offset
         can_overall_end = can_overall_start + overall_window - 1
-        
-        # Current window sequence in the scan (RC'd if strand is -)
-        scanned_seq = sequence if strand == "+" else reverse_complement(sequence)
         
         if can_overall_start < 1 or can_overall_end > len(scanned_seq):
             continue
@@ -273,6 +278,10 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             if strand == "+":
                 overall_start_gen = can_overall_start
                 overall_end_gen = can_overall_end
+            elif strand == "combined":
+                # Combined strand already in genome coords
+                overall_start_gen = can_overall_start
+                overall_end_gen = can_overall_end
             else:
                 overall_start_gen = seq_len - can_overall_end + 1
                 overall_end_gen = seq_len - can_overall_start + 1
@@ -280,7 +289,11 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             comb_hit = hit.copy()
             comb_hit["window_start"] = overall_start_gen
             comb_hit["window_end"] = overall_end_gen
-            comb_hit["window_sequence"] = overall_subseq
+            # For combined strand, preserve the mixed-case sequence (fwd=UPPER, rev=lower)
+            if strand == "combined":
+                comb_hit["window_sequence"] = hit.get("window_sequence", overall_subseq)
+            else:
+                comb_hit["window_sequence"] = overall_subseq
             comb_hit["pep_subwindow_sequence"] = pep_subseq_local
             comb_hit["pep_frame"] = f"{f_strand}{f_offset}"
             comb_hit["peptide_sequence"] = aa_seq
@@ -409,6 +422,7 @@ def main():
         
     headers = [
         "sequence_id", "nt_strand", "window_start", "window_end", 
+        "forward_start", "forward_end", "reverse_start", "reverse_end",
         "nt_subwindow_start", "nt_subwindow_end", "nt_motif_hits", "nt_base_content", "nt_max_repeats",
         "pep_subwindow_start", "pep_subwindow_end", "pep_frame", "peptide_sequence", 
         "matched_pep_motifs", "codon_efficiency", "is_self_complementary",
@@ -427,7 +441,7 @@ def main():
             w_strand = hit["strand"]
             
             # Map subwindow coords relative to overall window
-            if w_strand == "+":
+            if w_strand in ("+", "combined"):
                 row["nt_subwindow_start"] = w_start + config["nt_sub_offset"]
                 row["nt_subwindow_end"] = row["nt_subwindow_start"] + config["nt_sub_window"] - 1
                 row["pep_subwindow_start"] = w_start + config["pep_sub_offset"]

@@ -1362,7 +1362,7 @@ def build_hit_record(
         "strand": strand_label,
         "window_start": window_start,
         "window_end": window_end,
-        "window_sequence": analysis,  # Always uppercase
+        "window_sequence": display_sequence,  # Preserves case (e.g. combined: fwd=UPPER, rev=lower)
         "motif_sequence": matched_seq,
         "motif_hits": motif_hits,
         "base_percentages": base_percentages,
@@ -1449,7 +1449,7 @@ def build_hit_record_fast(
         "strand": strand_label,
         "window_start": window_start,
         "window_end": window_end,
-        "window_sequence": analysis_sequence.upper(),
+        "window_sequence": display_sequence,
         "motif_sequence": matched_seq,
         "motif_hits": motif_hits,
         "base_percentages": base_pct_pairs,
@@ -1677,15 +1677,20 @@ def scan_combined_windows(
         return hits
     last_end = -1
     for start in range(0, limit, step):
-        forward_part = sequence[start : start + forward_len]
+        forward_part = sequence[start : start + forward_len].upper()
         reverse_region_start = start + forward_len - overlap
         reverse_region_end = reverse_region_start + reverse_len
         reverse_source = sequence[reverse_region_start:reverse_region_end]
-        reverse_part = reverse_complement(reverse_source)
-        display_seq = forward_part + reverse_part.lower()
+        reverse_part = reverse_complement(reverse_source).lower()
+        display_seq = forward_part + reverse_part
         analysis_seq = (forward_part + reverse_part).upper()
         window_start = start + 1
         window_end = reverse_region_end
+        # Strand-specific coordinate ranges for annotation
+        fwd_start = start + 1
+        fwd_end = start + forward_len
+        rev_start = reverse_region_start + 1
+        rev_end = reverse_region_end
         hit = build_hit_record(
             seq_id,
             display_seq,
@@ -1703,6 +1708,10 @@ def scan_combined_windows(
             self_comp_constraints=self_comp_constraints,
         )
         if hit:
+            hit["forward_start"] = fwd_start
+            hit["forward_end"] = fwd_end
+            hit["reverse_start"] = rev_start
+            hit["reverse_end"] = rev_end
             if non_overlapping and last_end >= 0 and hit["window_start"] <= last_end:
                 continue
             if non_overlapping:
@@ -1826,6 +1835,10 @@ def write_outputs(rows: Sequence[Dict[str, object]], output_dir: Path, output_pr
         return False
 
     headers = ["sequence_id", "strand", "window_start", "window_end", "window_sequence"]
+
+    # Include strand-specific coordinate columns when combined windows are used
+    if has_useful_data("forward_start"):
+        headers.extend(["forward_start", "forward_end", "reverse_start", "reverse_end"])
     
     show_motif = has_useful_data("motif_sequence") or has_useful_data("motif_hits")
     if show_motif:

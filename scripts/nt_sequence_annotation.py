@@ -539,11 +539,23 @@ def annotate_rows(
             region_end = int(row.get(schema.end_field) or region_start)
         except ValueError:
             continue
-        strand_value = (row.get(schema.strand_field or "", "+") or "+")[:1]
+        strand_value = (row.get(schema.strand_field or "", "+") or "+")
+        # For combined strand windows, use only the forward part for annotation
+        # so we don't double-annotate across both strands
+        if strand_value == "combined" and row.get("forward_start") and row.get("forward_end"):
+            try:
+                annotation_start = int(row["forward_start"])
+                annotation_end = int(row["forward_end"])
+            except (ValueError, TypeError):
+                annotation_start = region_start
+                annotation_end = region_end
+        else:
+            annotation_start = region_start
+            annotation_end = region_end
         gff_data = resolve_entry(gff_index, gff_alias, seq_id)
-        gff_summary = summarize_gff_annotations(gff_data, region_start, region_end, protein_records)
+        gff_summary = summarize_gff_annotations(gff_data, annotation_start, annotation_end, protein_records)
         gbff_data = resolve_entry(gbff_genes, gbff_alias, seq_id) or []
-        gbff_hits = find_genes(gbff_data, region_start, region_end)
+        gbff_hits = find_genes(gbff_data, annotation_start, annotation_end)
         gbff_gene_names = sorted(
             {
                 gene.gene
