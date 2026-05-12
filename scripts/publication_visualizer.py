@@ -98,16 +98,19 @@ class RegionSegment:
 
 
 def detect_delimiter(path: Path) -> str:
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if "\t" in line: return "\t"
-            if "," in line: return ","
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for i, line in enumerate(handle):
+                if i > 50: break
+                if "\t" in line: return "\t"
+                if "," in line: return ","
+    except: pass
     return "\t"
 
 
 def normalize_seq_id(value: str | None) -> str:
     if not value: return "unknown"
-    return value.strip() or "unknown"
+    return str(value).strip() or "unknown"
 
 
 def format_chromosome_label(seq_id: str) -> str:
@@ -141,6 +144,13 @@ def format_chromosome_label(seq_id: str) -> str:
 def infer_coordinate_columns(headers: Sequence[str], kind: str) -> Tuple[str, str]:
     lowered = {h.lower(): h for h in headers}
     if kind != "auto":
+        if kind not in KIND_COLUMN_CHOICES:
+             # Try to find common columns anyway if kind is unknown
+             for start, end in FALLBACK_COLUMN_ORDER:
+                if start in headers and end in headers: return start, end
+                if start.lower() in lowered and end.lower() in lowered:
+                    return lowered[start.lower()], lowered[end.lower()]
+             raise ValueError(f"Unknown input kind '{kind}' and could not find coordinates.")
         start, end = KIND_COLUMN_CHOICES[kind]
         if start in headers and end in headers: return start, end
         if start.lower() in lowered and end.lower() in lowered:
@@ -166,22 +176,26 @@ def parse_region_filters(values: Sequence[str]) -> Dict[str, List[Tuple[int, int
     for spec in values:
         if not spec: continue
         try:
-            seq_part, coords = spec.split(":", 1)
-            start_text, end_text = coords.replace(",", "").split("-")
-            start, end = int(start_text), int(end_text)
+            if ":" in spec:
+                seq_part, coords = spec.split(":", 1)
+                start_text, end_text = coords.replace(",", "").split("-")
+                start, end = int(start_text), int(end_text)
+                seq_id = normalize_seq_id(seq_part)
+                filters[seq_id].append((start, end))
+            else:
+                # Just a sequence ID
+                pass 
         except Exception:
             raise ValueError(f"Region '{spec}' must look like SEQ:START-END.")
-        if start <= 0 or end <= 0: raise ValueError("Positive coordinates required.")
-        if end < start: start, end = end, start
-        seq_id = normalize_seq_id(seq_part)
-        filters[seq_id].append((start, end))
     return filters
 
 
 def within_region(seq_id: str, start: int, end: int, filters: Dict[str, List[Tuple[int, int]]]) -> bool:
     if not filters: return True
     ranges = filters.get(seq_id)
-    if not ranges: return False
+    if not ranges: return False # If we have filters but this sequence isn't in them, it's filtered out? 
+    # Actually, if the seq_id is in filters but has no ranges, maybe it's "include all"?
+    # For now, if seq_id is in filters, we check ranges.
     for r_start, r_end in ranges:
         if end >= r_start and start <= r_end: return True
     return False
@@ -209,20 +223,20 @@ def format_segment_label(seq_id: str, start: int, end: int, gene_value: str | No
 
 def parse_int(value: str | None) -> int | None:
     if not value: return None
-    try: return int(float(value.strip()))
+    try: return int(float(str(value).strip()))
     except ValueError: return None
 
 
 def normalize_line_style(value: str | None) -> str:
     if not value: return "solid"
-    cleaned = value.strip().lower()
+    cleaned = str(value).strip().lower()
     return cleaned if cleaned in {"solid", "dashed"} else "solid"
 
 
 def select_field(row: Dict[str, str], names: Sequence[str]) -> str:
     for name in names:
         val = row.get(name)
-        if val: return val.strip()
+        if val: return str(val).strip()
     return ""
 
 
@@ -235,12 +249,12 @@ def detect_category(row: Dict[str, str]) -> str | None:
     for field in ANNOTATION_FIELDS:
         raw = row.get(field)
         if not raw or raw.upper() == "NA": continue
-        for token in re.split(r"[;,/| ]+", raw):
+        for token in re.split(r"[;,/| ]+", str(raw)):
             normalized = normalize_category_token(token)
             if normalized: return normalized
     region_type = row.get("feature_type")
     if region_type:
-        normalized = normalize_category_token(region_type)
+        normalized = normalize_category_token(str(region_type))
         if normalized: return normalized
     return None
 
@@ -270,7 +284,7 @@ def build_segment_from_row(
     annotation = None
     if annotation_field:
         raw = row.get(annotation_field)
-        if raw and raw.upper() != "NA": annotation = raw
+        if raw and str(raw).upper() != "NA": annotation = str(raw)
     category = detect_category(row)
     
     return RegionSegment(
@@ -287,21 +301,24 @@ def iter_file_segments(
     region_filters: Dict[str, List[Tuple[int, int]]] | None, gene_filters: set[str] | None,
 ) -> Iterable[RegionSegment]:
     delimiter = detect_delimiter(path)
-    with path.open("r", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        if not reader.fieldnames: return
-        start_col, end_col = infer_coordinate_columns(reader.fieldnames, kind_hint)
-        annotation_col = None
-        if annotation_field:
-            lowered = {h.lower(): h for h in reader.fieldnames}
-            annotation_col = annotation_field if annotation_field in reader.fieldnames else lowered.get(annotation_field.lower())
-        for row in reader:
-            segment = build_segment_from_row(
-                row, start_col, end_col, show_labels, label_mode, dataset_index,
-                dataset_name, dataset_color, opacity, line_style, annotation_col,
-                seq_filters, region_filters, gene_filters,
-            )
-            if segment is not None: yield segment
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle, delimiter=delimiter)
+            if not reader.fieldnames: return
+            start_col, end_col = infer_coordinate_columns(reader.fieldnames, kind_hint)
+            annotation_col = None
+            if annotation_field:
+                lowered = {h.lower(): h for h in reader.fieldnames}
+                annotation_col = annotation_field if annotation_field in reader.fieldnames else lowered.get(annotation_field.lower())
+            for row in reader:
+                segment = build_segment_from_row(
+                    row, start_col, end_col, show_labels, label_mode, dataset_index,
+                    dataset_name, dataset_color, opacity, line_style, annotation_col,
+                    seq_filters, region_filters, gene_filters,
+                )
+                if segment is not None: yield segment
+    except Exception as e:
+        print(f"Warning: Failed to parse {path}: {e}")
 
 
 def natural_key(value: str) -> Tuple:
@@ -309,18 +326,25 @@ def natural_key(value: str) -> Tuple:
     return tuple((0, int(p)) if p.isdigit() else (1, p) for p in parts)
 
 
-def group_segments(segments: Sequence[RegionSegment], dataset_count: int) -> Dict[str, Dict[int, List[RegionSegment]]]:
+def group_segments(segments: Sequence[RegionSegment], dataset_count: int, seq_filters: set[str] | None = None) -> Dict[str, Dict[int, List[RegionSegment]]]:
     grouped: Dict[str, Dict[int, List[RegionSegment]]] = {}
+    
+    # Initialize with filtered sequences if any
+    if seq_filters:
+        for s in seq_filters:
+            grouped[s] = {idx: [] for idx in range(dataset_count)}
+            
     for segment in segments:
         bucket = grouped.setdefault(segment.seq_id, {idx: [] for idx in range(dataset_count)})
         bucket[segment.dataset_index].append(segment)
+        
     for seq_bucket in grouped.values():
         for dataset_segments in seq_bucket.values():
             dataset_segments.sort(key=lambda seg: seg.start)
     return grouped
 
 
-def compute_density_map(chrom_length: int, segments: List[RegionSegment], bins: int = 160) -> List[float]:
+def compute_density_map(chrom_length: int, segments: List[RegionSegment], bins: int = 200) -> List[float]:
     if chrom_length <= 0 or not segments: return [0.0] * bins
     density = [0.0] * bins
     for segment in segments:
@@ -329,6 +353,7 @@ def compute_density_map(chrom_length: int, segments: List[RegionSegment], bins: 
         start_bin = int(norm_start * bins)
         end_bin = int(norm_end * bins)
         for bin_idx in range(start_bin, min(end_bin + 1, bins)):
+            if bin_idx >= bins: break
             overlap_start = max(norm_start, bin_idx / bins)
             overlap_end = min(norm_end, (bin_idx + 1) / bins)
             if overlap_end > overlap_start:
@@ -372,20 +397,25 @@ def render_plot(
     if args.title:
         fig.suptitle(args.title, fontsize=args.font_size + 4, fontweight="bold")
     
-    # Coordinates in data space (0 to num_chroms horizontally, 0 to 1 vertically)
+    # Track width calculations
     chrom_width_ratio = 0.1 / num_chroms if dataset_count == 1 else 0.08 / num_chroms
     track_width = chrom_width_ratio / max(1, dataset_count)
     dataset_gap = track_width * 0.1
     
-    max_length = max(length_map.values(), default=0)
-    if max_length == 0:
-        max_length = 1
+    max_length_global = max(length_map.values(), default=0)
+    if max_length_global == 0: max_length_global = 1
 
     for idx, seq in enumerate(seq_order):
         seq_data = grouped[seq]
         x_center = idx + 0.5
         chrom_length = length_map.get(seq, 0)
         
+        # Scaling factor for this chromosome
+        if args.scale_mode == "relative" and chrom_length > 0:
+            scale_len = chrom_length
+        else:
+            scale_len = max_length_global
+            
         # Draw Chromosome Title
         ax.text(x_center, 1.02, format_chromosome_label(seq), ha="center", va="bottom", fontsize=args.font_size)
         
@@ -394,10 +424,14 @@ def render_plot(
             dx = x_left + d_idx * (track_width + dataset_gap)
             
             # Draw Chromosome Background
+            # If scaling is relative, background is 1.0. If absolute, it's relative to global max.
+            bg_height = (chrom_length / max_length_global) if args.scale_mode == "absolute" else 1.0
+            if bg_height <= 0: bg_height = 0.01 # Minimal line for visibility
+            
             chrom_patch = patches.FancyBboxPatch(
-                (dx, 0), track_width, 1.0,
-                boxstyle=f"round,pad=0,rounding_size={track_width/2}",
-                facecolor="#f8f8f8", edgecolor="#444444", lw=1.0
+                (dx, 1.0 - bg_height), track_width, bg_height,
+                boxstyle=f"round,pad=0,rounding_size={min(track_width/2, bg_height/2)}",
+                facecolor=args.bg_color, edgecolor="#444444", lw=0.5, alpha=args.bg_alpha
             )
             ax.add_patch(chrom_patch)
             
@@ -405,7 +439,7 @@ def render_plot(
             if args.density and segments:
                 densities = compute_density_map(chrom_length, segments)
                 bins = len(densities)
-                bin_height = 1.0 / bins
+                bin_height = bg_height / bins
                 for bin_idx, value in enumerate(densities):
                     if value > 0:
                         y0 = 1.0 - (bin_idx + 1) * bin_height
@@ -421,16 +455,16 @@ def render_plot(
                 else:
                     color = dataset_meta[d_idx].color
                     
-                start_ratio = max(0.0, segment.start / max_length)
-                end_ratio = min(1.0, segment.end / max_length)
+                start_ratio = max(0.0, segment.start / scale_len)
+                end_ratio = min(1.0, segment.end / scale_len)
                 
                 y_top = 1.0 - start_ratio
                 rect_height = end_ratio - start_ratio
                 y_bottom = 1.0 - end_ratio
                 
-                # Minimum height for visibility
-                if rect_height < 0.005:
-                    rect_height = 0.005
+                # Minimum height for visibility (e.g. 1 pixel approx)
+                if rect_height < 0.002:
+                    rect_height = 0.002
                     y_bottom = y_top - rect_height
                     
                 ls = "--" if segment.line_style == "dashed" else "-"
@@ -438,7 +472,7 @@ def render_plot(
                 
                 hit_patch = patches.Rectangle(
                     (dx, y_bottom), track_width, rect_height,
-                    facecolor=color, edgecolor=color, alpha=alpha, lw=1.0, linestyle=ls
+                    facecolor=color, edgecolor=color, alpha=alpha, lw=0.5, linestyle=ls
                 )
                 ax.add_patch(hit_patch)
                 
@@ -446,19 +480,23 @@ def render_plot(
                     ax.text(
                         dx + track_width / 2, y_bottom + rect_height / 2,
                         str(segment.annotation),
-                        ha="center", va="center", fontsize=args.font_size - 2, color="black"
+                        ha="center", va="center", fontsize=args.font_size - 4, color="black", rotation=90
                     )
                 
                 if not args.color_only and segment.label:
                     label_x = x_center + (dataset_count * track_width + (dataset_count - 1) * dataset_gap) / 2 + 0.02
                     mid_y = y_bottom + rect_height / 2
-                    ax.plot([dx + track_width, label_x - 0.01], [mid_y, mid_y], color=color, lw=1.0, alpha=0.5)
-                    ax.text(label_x, mid_y, segment.label, ha="left", va="center", fontsize=args.font_size - 1, color="black")
+                    ax.plot([dx + track_width, label_x - 0.01], [mid_y, mid_y], color=color, lw=0.5, alpha=0.3)
+                    ax.text(label_x, mid_y, segment.label, ha="left", va="center", fontsize=args.font_size - 2, color="black")
 
     if legend_entries:
         handles = [patches.Rectangle((0,0),1,1, facecolor=color, edgecolor="#333", lw=0.5) for _, color in legend_entries]
         labels = [label for label, _ in legend_entries]
-        ax.legend(handles, labels, title=legend_title, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
+        
+        if args.legend_pos == "bottom":
+            ax.legend(handles, labels, title=legend_title, loc="upper center", bbox_to_anchor=(0.5, -0.05), frameon=False, ncol=min(len(labels), 4))
+        else:
+            ax.legend(handles, labels, title=legend_title, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
 
     plt.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -469,10 +507,11 @@ def render_plot(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render publication-ready chromosome tracks.")
     parser.add_argument("inputs", nargs="+", help="TSV/CSV files to visualize.")
-    parser.add_argument("--input-kind", dest="input_kinds", action="append", choices=["auto", *KIND_COLUMN_CHOICES.keys()])
+    parser.add_argument("--input-kind", dest="input_kinds", action="append")
     parser.add_argument("--input-label", dest="input_labels", action="append")
     parser.add_argument("--input-opacity", dest="input_opacities", action="append", type=float)
     parser.add_argument("--input-style", dest="input_styles", action="append")
+    parser.add_argument("--input-color", dest="input_colors", action="append")
     parser.add_argument("--output", default="output_/chromosome_tracks.png")
     parser.add_argument("--output-format", default="png", choices=["png", "pdf", "svg", "tiff", "eps"])
     parser.add_argument("--fig-width", type=float, default=12.0)
@@ -489,6 +528,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--region", action="append", metavar="SEQ:START-END", default=[])
     parser.add_argument("--gene-filter", action="append", default=[])
     parser.add_argument("--title")
+    parser.add_argument("--scale-mode", choices=["absolute", "relative"], default="absolute")
+    parser.add_argument("--bg-color", default="#f8f8f8")
+    parser.add_argument("--bg-alpha", type=float, default=1.0)
+    parser.add_argument("--legend-pos", choices=["right", "bottom"], default="right")
     return parser
 
 
@@ -504,7 +547,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     dataset_count = len(input_paths)
     
     # Handle Palettes
-    palette_colors = DATASET_COLORS
+    palette_colors = list(DATASET_COLORS)
     if args.palette and args.palette.lower() != "default":
         try:
             cmap = plt.get_cmap(args.palette)
@@ -512,7 +555,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ValueError:
             pass # fallback to default
             
-    dataset_colors = [palette_colors[idx % len(palette_colors)] for idx in range(dataset_count)]
+    dataset_colors = []
+    input_colors = args.input_colors or []
+    for idx in range(dataset_count):
+        if idx < len(input_colors) and input_colors[idx]:
+            dataset_colors.append(input_colors[idx])
+        else:
+            dataset_colors.append(palette_colors[idx % len(palette_colors)])
     
     dataset_labels = []
     input_labels = args.input_labels or []
@@ -567,12 +616,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         ):
             all_segments.append(segment)
             
-    if not all_segments: parser.error("No valid regions found.")
+    if not all_segments and not seq_filters: parser.error("No valid regions found and no sequence filters provided.")
     
     classification_mode = dataset_count == 1 and any(segment.category for segment in all_segments)
-    if dataset_count == 1 and not classification_mode: dataset_meta[0].color = DEFAULT_SINGLE_COLOR
+    if dataset_count == 1 and not classification_mode: 
+        if not input_colors: dataset_meta[0].color = DEFAULT_SINGLE_COLOR
     
-    grouped = group_segments(all_segments, dataset_count)
+    grouped = group_segments(all_segments, dataset_count, seq_filters)
     used_categories = sorted({segment.category for segment in all_segments if segment.category})
     
     if classification_mode:
@@ -592,4 +642,5 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
+

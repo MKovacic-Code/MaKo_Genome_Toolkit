@@ -41,6 +41,7 @@ from tkinter import (
     filedialog,
     messagebox,
     scrolledtext,
+    colorchooser,
 )
 from tkinter import simpledialog
 from tkinter import ttk
@@ -367,6 +368,10 @@ class ScannerGUI:
         self.vector_font_family_var = StringVar(value="Arial")
         self.vector_font_size_var = StringVar(value="12")
         self.vector_palette_var = StringVar(value="default")
+        self.vector_scale_mode_var = StringVar(value="absolute")
+        self.vector_bg_color_var = StringVar(value="#f8f8f8")
+        self.vector_bg_alpha_var = StringVar(value="1.0")
+        self.vector_legend_pos_var = StringVar(value="right")
         self.vector_source_flags = {
             "nt_sequence_hits": BooleanVar(value=False),
             "nt_sequence_hits_analyzed": BooleanVar(value=False),
@@ -380,6 +385,7 @@ class ScannerGUI:
             key: {
                 "opacity": StringVar(value="0.75"),
                 "style": StringVar(value="solid"),
+                "color": StringVar(value=""),
             }
             for key in self.vector_source_flags
         }
@@ -1885,7 +1891,6 @@ class ScannerGUI:
             style_row.pack(anchor="w", pady=(4, 0))
             Label(style_row, text="Opacity (0-1):").pack(side=LEFT)
             Entry(style_row, textvariable=controls["opacity"], width=6).pack(side=LEFT, padx=(4, 12))
-            Label(style_row, text="Style:").pack(side=LEFT)
             ttk.Combobox(
                 style_row,
                 textvariable=controls["style"],
@@ -1893,6 +1898,13 @@ class ScannerGUI:
                 values=("solid", "dashed"),
                 width=8,
             ).pack(side=LEFT)
+            
+            Label(style_row, text="Color:").pack(side=LEFT, padx=(12, 4))
+            c_btn = Button(style_row, text="   ", width=2, relief="sunken")
+            c_btn.pack(side=LEFT)
+            if controls["color"].get():
+                c_btn.configure(bg=controls["color"].get())
+            c_btn.configure(command=lambda v=controls["color"], b=c_btn: self.choose_color(v, b))
 
         gene_section = LabelFrame(left_col, text="Gene List Extraction")
         gene_section.pack(fill=BOTH, pady=(0, 10))
@@ -1961,7 +1973,10 @@ class ScannerGUI:
             text="Examples: longest_palindrome_sequence, pqsfinder_score, region_annotations",
             wraplength=320,
             justify=LEFT,
-        ).pack(anchor="w", pady=(0, 4))
+        ).pack(anchor="w", pady=(0, 6))
+
+        Label(options, text="Scaling Mode:").pack(anchor="w")
+        ttk.Combobox(options, textvariable=self.vector_scale_mode_var, state="readonly", values=("absolute", "relative")).pack(fill=BOTH, pady=(0, 4))
 
         pub_section = LabelFrame(right_col, text="Publication Settings")
         pub_section.pack(fill=BOTH, pady=(0, 10))
@@ -1985,6 +2000,17 @@ class ScannerGUI:
         Entry(row2, textvariable=self.vector_font_size_var, width=4).pack(side=LEFT, padx=(4, 10))
         Label(row2, text="Palette:").pack(side=LEFT)
         ttk.Combobox(row2, textvariable=self.vector_palette_var, values=("default", "tab10", "Set2", "Dark2", "Paired", "viridis"), width=8).pack(side=LEFT, padx=(4, 0))
+        
+        row3 = Frame(pub_section)
+        row3.pack(fill=X, padx=5, pady=2)
+        Label(row3, text="BG Color:").pack(side=LEFT)
+        bg_btn = Button(row3, text="   ", width=2, relief="sunken", bg=self.vector_bg_color_var.get())
+        bg_btn.pack(side=LEFT, padx=(4, 10))
+        bg_btn.configure(command=lambda v=self.vector_bg_color_var, b=bg_btn: self.choose_color(v, b))
+        Label(row3, text="BG Alpha:").pack(side=LEFT)
+        Entry(row3, textvariable=self.vector_bg_alpha_var, width=5).pack(side=LEFT, padx=(4, 10))
+        Label(row3, text="Legend:").pack(side=LEFT)
+        ttk.Combobox(row3, textvariable=self.vector_legend_pos_var, state="readonly", values=("right", "bottom"), width=8).pack(side=LEFT, padx=(4, 0))
 
         filter_box = LabelFrame(right_col, text="Input Filters")
         filter_box.pack(fill=BOTH, pady=(0, 10))
@@ -2394,6 +2420,7 @@ class ScannerGUI:
         label_var = StringVar(value=f"Custom {len(self.vector_custom_rows) + 1}")
         opacity_var = StringVar(value="0.75")
         style_var = StringVar(value="solid")
+        color_var = StringVar(value="")
 
         frame = Frame(parent, relief="groove", borderwidth=1)
         frame.pack(fill=BOTH, pady=4)
@@ -2443,7 +2470,11 @@ class ScannerGUI:
         Label(style_row, text="Opacity (0-1):").pack(side=LEFT)
         Entry(style_row, textvariable=opacity_var, width=6).pack(side=LEFT, padx=(4, 12))
         Label(style_row, text="Style:").pack(side=LEFT)
-        ttk.Combobox(style_row, textvariable=style_var, state="readonly", values=("solid", "dashed")).pack(side=LEFT)
+        ttk.Combobox(style_row, textvariable=style_var, state="readonly", values=("solid", "dashed"), width=8).pack(side=LEFT, padx=(4, 12))
+        Label(style_row, text="Color:").pack(side=LEFT, padx=4)
+        c_btn = Button(style_row, text="   ", width=2, relief="sunken")
+        c_btn.pack(side=LEFT)
+        c_btn.configure(command=lambda v=color_var, b=c_btn: self.choose_color(v, b))
 
         def remove_row() -> None:
             frame.destroy()
@@ -2459,6 +2490,7 @@ class ScannerGUI:
                 "label": label_var,
                 "opacity": opacity_var,
                 "style": style_var,
+                "color": color_var,
             }
         )
 
@@ -2824,6 +2856,17 @@ class ScannerGUI:
             target = ROOT_DIR / target
         target.mkdir(parents=True, exist_ok=True)
         self._open_path_default(str(target))
+
+    def choose_color(self, target_var: StringVar, button: Button | None = None) -> None:
+        current = target_var.get() or "#ff0000"
+        _, hex_color = colorchooser.askcolor(initialcolor=current, title="Select Color")
+        if hex_color:
+            target_var.set(hex_color)
+            if button:
+                try:
+                    button.configure(bg=hex_color)
+                except:
+                    pass
 
     @staticmethod
     def _detect_table_delimiter(path: Path) -> str:
@@ -4292,6 +4335,7 @@ class ScannerGUI:
         dataset_labels: List[str] = []
         dataset_opacities: List[str] = []
         dataset_styles: List[str] = []
+        dataset_colors: List[str] = []
 
         source_map = {
             "nt_sequence_hits": (self.process_hits_var, "nt_sequence_hits", "NT sequence hits"),
@@ -4332,6 +4376,7 @@ class ScannerGUI:
             controls = self.vector_dataset_options[key]
             dataset_opacities.append(self._normalize_opacity_input(controls["opacity"].get()))
             dataset_styles.append(self._normalize_line_style_input(controls["style"].get()))
+            dataset_colors.append(controls["color"].get().strip())
 
         for row in self.vector_custom_rows:
             if not row["include"].get():
@@ -4346,6 +4391,7 @@ class ScannerGUI:
             dataset_labels.append(label_value)
             dataset_opacities.append(self._normalize_opacity_input(row["opacity"].get()))
             dataset_styles.append(self._normalize_line_style_input(row["style"].get()))
+            dataset_colors.append(row["color"].get().strip())
 
         if not dataset_paths:
             messagebox.showerror("No datasets", "Select at least one dataset or custom file to visualize.")
@@ -4382,6 +4428,9 @@ class ScannerGUI:
             cmd.extend(["--input-opacity", opacity])
         for style in dataset_styles:
             cmd.extend(["--input-style", style])
+        for color in dataset_colors:
+            cmd.extend(["--input-color", color if color else ""])
+            
         cmd.extend(["--output", str(output_path)])
         cmd.extend(["--output-format", fmt])
         cmd.extend(["--dpi", self.vector_dpi_var.get().strip() or "300"])
@@ -4390,6 +4439,11 @@ class ScannerGUI:
         cmd.extend(["--font-family", self.vector_font_family_var.get().strip() or "Arial"])
         cmd.extend(["--font-size", self.vector_font_size_var.get().strip() or "12"])
         cmd.extend(["--palette", self.vector_palette_var.get().strip() or "default"])
+        cmd.extend(["--scale-mode", self.vector_scale_mode_var.get().strip() or "absolute"])
+        cmd.extend(["--bg-color", self.vector_bg_color_var.get().strip() or "#f8f8f8"])
+        cmd.extend(["--bg-alpha", self.vector_bg_alpha_var.get().strip() or "1.0"])
+        cmd.extend(["--legend-pos", self.vector_legend_pos_var.get().strip() or "right"])
+
         label_mode = (self.vector_label_mode_var.get() or "gene+coords").strip()
         if label_mode not in {"none", "gene", "gene+coords"}:
             label_mode = "gene+coords"
