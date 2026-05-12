@@ -1237,6 +1237,11 @@ class ScannerGUI:
             "Optional: windows must contain a palindrome at least this long. Leave blank to skip filtering.",
         )
 
+        profile_btn_frame = Frame(scan_section)
+        profile_btn_frame.pack(fill=X, pady=(10, 0))
+        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("nucleotide")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
+        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("nucleotide")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
+
         self.run_button = Button(scan_section, text="Run Genome Scan", command=self.run_scan, height=2)
         self.run_button.pack(fill=BOTH, pady=(8, 0))
 
@@ -1433,10 +1438,15 @@ class ScannerGUI:
 
         actions = Frame(right_col)
         actions.pack(fill=BOTH, pady=(10, 0))
+        profile_btn_frame = Frame(actions)
+        profile_btn_frame.pack(fill=X, pady=(10, 0))
+        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("peptide")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
+        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("peptide")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
+
         self.peptide_button = Button(
             actions, text="Run Peptide Coding Search", command=self.run_peptide_search, height=2
         )
-        self.peptide_button.pack(fill=BOTH)
+        self.peptide_button.pack(fill=BOTH, pady=(8, 0))
         self.peptide_annotate_button = Button(
             actions,
             text="Annotate Peptide Hits",
@@ -1561,6 +1571,11 @@ class ScannerGUI:
         self._add_labeled_entry(sub_row, "NT Off:", self.combined_nt_sub_offset_var, 6)
         self._add_labeled_entry(sub_row, "Pep Len:", self.combined_pep_sub_window_var, 6)
         self._add_labeled_entry(sub_row, "Pep Off:", self.combined_pep_sub_offset_var, 6)
+
+        profile_btn_frame = Frame(param_section)
+        profile_btn_frame.pack(fill=X, padx=5, pady=(5, 0))
+        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("combined")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
+        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("combined")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
 
         Button(
             param_section,
@@ -2903,8 +2918,6 @@ class ScannerGUI:
         
         if self.require_palindrome_var.get():
             cmd.append("--require-palindrome")
-        if self.non_overlapping_var.get():
-            cmd.append("--non-overlapping")
             pal_min = self.palindrome_min_len_var.get().strip()
             if pal_min:
                 cmd.extend(["--palindrome-min-len", pal_min])
@@ -2924,6 +2937,141 @@ class ScannerGUI:
                 cmd.extend(["--sequence-class", c])
 
         self._run_subprocess(cmd, "Combined Search Scanner")
+
+    def save_search_profile(self, mode: str) -> None:
+        file_path = filedialog.asksaveasfilename(
+            title=f"Save {mode.capitalize()} Profile",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json")],
+        )
+        if not file_path:
+            return
+
+        data = {
+            "mode": mode,
+            "window": self.window_var.get(),
+            "step": self.step_var.get(),
+            "workers": self.workers_var.get(),
+            "output_name": self.output_name_var.get(),
+            "forward_strand": self.forward_strand_var.get(),
+            "reverse_strand": self.reverse_strand_var.get(),
+            "sequence_filter": self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter"),
+            "region_filter": self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter")
+        }
+
+        if mode in ("nucleotide", "combined"):
+            data.update({
+                "require_palindrome": self.require_palindrome_var.get(),
+                "palindrome_min_len": self.palindrome_min_len_var.get(),
+                "non_overlapping": self.non_overlapping_var.get(),
+                "nt_motifs": self._get_advanced_lines(self.motif_widget, "_saved_motif_text"),
+                "exclude_nt_motifs": self._get_advanced_lines(self.exclude_motif_widget, "_saved_exclude_text"),
+                "base_content": self._get_advanced_lines(self.base_widget, "_saved_base_text"),
+                "repeat_limits": self._get_advanced_lines(self.repeat_widget, "_saved_repeat_text"),
+                "forward_only_motifs": self._get_advanced_lines(self.forward_only_motif_widget, "_saved_forward_only_motif_text"),
+                "reverse_only_motifs": self._get_advanced_lines(self.reverse_only_motif_widget, "_saved_reverse_only_motif_text"),
+                "self_comp": self._get_advanced_lines(self.sc_widget, "_saved_sc_text"),
+            })
+
+        if mode in ("peptide", "combined"):
+            data.update({
+                "pep_motifs": self._get_advanced_lines(self.pep_motif_widget, "_saved_pep_motif"),
+                "exclude_pep_motifs": self._get_advanced_lines(self.pep_exclude_motif_widget, "_saved_pep_exclude"),
+                "amino_content": self._get_advanced_lines(self.pep_amino_widget, "_saved_pep_amino"),
+                "pep_repeats": self._get_advanced_lines(self.pep_repeat_widget, "_saved_pep_repeat"),
+                "frames": self._get_advanced_lines(self.pep_frame_widget, "_saved_pep_frame"),
+                "pep_mismatches": self.peptide_mismatches_var.get(),
+            })
+
+        if mode == "combined":
+            data.update({
+                "combined_strand": self.combined_strand_var.get(),
+                "combined_forward_len": self.combined_forward_var.get(),
+                "combined_reverse_len": self.combined_reverse_var.get(),
+                "combined_overlap": self.combined_overlap_var.get(),
+                "nt_sub_window": self.combined_nt_sub_window_var.get(),
+                "nt_sub_offset": self.combined_nt_sub_offset_var.get(),
+                "pep_sub_window": self.combined_pep_sub_window_var.get(),
+                "pep_sub_offset": self.combined_pep_sub_offset_var.get(),
+            })
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                import json
+                json.dump(data, f, indent=4)
+            self.append_log(f"Saved {mode} search profile to {Path(file_path).name}")
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Failed to save profile:\n{e}")
+
+    def load_search_profile(self, mode: str) -> None:
+        file_path = filedialog.askopenfilename(
+            title=f"Load {mode.capitalize()} Profile",
+            filetypes=[("JSON files", "*.json")],
+        )
+        if not file_path:
+            return
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                import json
+                data = json.load(f)
+        except Exception as e:
+            messagebox.showerror("Load Error", f"Failed to load profile:\n{e}")
+            return
+
+        if data.get("mode") != mode:
+            if not messagebox.askyesno(
+                "Profile Mismatch", 
+                f"This profile was saved from a '{data.get('mode')}' search. Are you sure you want to load it into the '{mode}' tab?"
+            ):
+                return
+
+        def set_var(var, key, default=""):
+            if key in data:
+                var.set(str(data[key]))
+
+        set_var(self.window_var, "window")
+        set_var(self.step_var, "step")
+        set_var(self.workers_var, "workers")
+        set_var(self.output_name_var, "output_name")
+        if "forward_strand" in data: self.forward_strand_var.set(bool(data["forward_strand"]))
+        if "reverse_strand" in data: self.reverse_strand_var.set(bool(data["reverse_strand"]))
+        
+        if "sequence_filter" in data: self._set_multiline_widget(self.sequence_filter_widget, "_saved_seq_filter", data["sequence_filter"])
+        if "region_filter" in data: self._set_multiline_widget(self.region_filter_widget, "_saved_reg_filter", data["region_filter"])
+
+        if mode in ("nucleotide", "combined"):
+            if "require_palindrome" in data: self.require_palindrome_var.set(bool(data["require_palindrome"]))
+            if "non_overlapping" in data: self.non_overlapping_var.set(bool(data["non_overlapping"]))
+            set_var(self.palindrome_min_len_var, "palindrome_min_len")
+            
+            if "nt_motifs" in data: self._set_multiline_widget(self.motif_widget, "_saved_motif_text", data["nt_motifs"])
+            if "exclude_nt_motifs" in data: self._set_multiline_widget(self.exclude_motif_widget, "_saved_exclude_text", data["exclude_nt_motifs"])
+            if "base_content" in data: self._set_multiline_widget(self.base_widget, "_saved_base_text", data["base_content"])
+            if "repeat_limits" in data: self._set_multiline_widget(self.repeat_widget, "_saved_repeat_text", data["repeat_limits"])
+            if "forward_only_motifs" in data: self._set_multiline_widget(self.forward_only_motif_widget, "_saved_forward_only_motif_text", data["forward_only_motifs"])
+            if "reverse_only_motifs" in data: self._set_multiline_widget(self.reverse_only_motif_widget, "_saved_reverse_only_motif_text", data["reverse_only_motifs"])
+            if "self_comp" in data: self._set_multiline_widget(self.sc_widget, "_saved_sc_text", data["self_comp"])
+
+        if mode in ("peptide", "combined"):
+            set_var(self.peptide_mismatches_var, "pep_mismatches")
+            if "pep_motifs" in data: self._set_multiline_widget(self.pep_motif_widget, "_saved_pep_motif", data["pep_motifs"])
+            if "exclude_pep_motifs" in data: self._set_multiline_widget(self.pep_exclude_motif_widget, "_saved_pep_exclude", data["exclude_pep_motifs"])
+            if "amino_content" in data: self._set_multiline_widget(self.pep_amino_widget, "_saved_pep_amino", data["amino_content"])
+            if "pep_repeats" in data: self._set_multiline_widget(self.pep_repeat_widget, "_saved_pep_repeat", data["pep_repeats"])
+            if "frames" in data: self._set_multiline_widget(self.pep_frame_widget, "_saved_pep_frame", data["frames"])
+
+        if mode == "combined":
+            if "combined_strand" in data: self.combined_strand_var.set(bool(data["combined_strand"]))
+            set_var(self.combined_forward_var, "combined_forward_len")
+            set_var(self.combined_reverse_var, "combined_reverse_len")
+            set_var(self.combined_overlap_var, "combined_overlap")
+            set_var(self.combined_nt_sub_window_var, "nt_sub_window")
+            set_var(self.combined_nt_sub_offset_var, "nt_sub_offset")
+            set_var(self.combined_pep_sub_window_var, "pep_sub_window")
+            set_var(self.combined_pep_sub_offset_var, "pep_sub_offset")
+            
+        self.append_log(f"Loaded {mode} search profile from {Path(file_path).name}")
 
     def run_scan(self) -> None:
         fasta_path = self.fasta_var.get().strip()
