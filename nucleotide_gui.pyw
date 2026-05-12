@@ -71,7 +71,7 @@ SCAN_SCRIPT = SCRIPTS_DIR / "nt_sequence_search.py"
 ANALYSIS_SCRIPT = SCRIPTS_DIR / "nt_sequence_G4_TD_analysis.py"
 ANNOTATION_SCRIPT = SCRIPTS_DIR / "nt_sequence_annotation.py"
 VISUALIZER_SCRIPT = SCRIPTS_DIR / "chromosome_visualizer.py"
-VECTOR_VIZ_SCRIPT = SCRIPTS_DIR / "chromosome_vector_visualizer.py"
+PUBLICATION_VIZ_SCRIPT = SCRIPTS_DIR / "publication_visualizer.py"
 GENE_SCRIPT = SCRIPTS_DIR / "exctract_genes_nt_sequence_annotated.py"
 TRIPLEX_SCRIPT = SCRIPTS_DIR / "triplex_search.py"
 SPLIT_RNA_SCRIPT = SCRIPTS_DIR / "rna_sequence_windows_split.py"
@@ -339,6 +339,13 @@ class ScannerGUI:
         self.vector_seq_ids_var = StringVar()
         self.vector_region_filter_var = StringVar()
         self.vector_gene_filter_var = StringVar()
+        self.vector_output_format_var = StringVar(value="png")
+        self.vector_dpi_var = StringVar(value="300")
+        self.vector_fig_width_var = StringVar(value="12.0")
+        self.vector_fig_height_var = StringVar(value="8.0")
+        self.vector_font_family_var = StringVar(value="Arial")
+        self.vector_font_size_var = StringVar(value="12")
+        self.vector_palette_var = StringVar(value="default")
         self.vector_source_flags = {
             "nt_sequence_hits": BooleanVar(value=False),
             "nt_sequence_hits_analyzed": BooleanVar(value=False),
@@ -1903,6 +1910,29 @@ class ScannerGUI:
             wraplength=320,
             justify=LEFT,
         ).pack(anchor="w", pady=(0, 4))
+
+        pub_section = LabelFrame(right_col, text="Publication Settings")
+        pub_section.pack(fill=BOTH, pady=(0, 10))
+        
+        row1 = Frame(pub_section)
+        row1.pack(fill=X, padx=5, pady=2)
+        Label(row1, text="Format:").pack(side=LEFT)
+        ttk.Combobox(row1, textvariable=self.vector_output_format_var, state="readonly", values=("png", "pdf", "svg", "tiff", "eps"), width=5).pack(side=LEFT, padx=(4, 10))
+        Label(row1, text="DPI:").pack(side=LEFT)
+        Entry(row1, textvariable=self.vector_dpi_var, width=5).pack(side=LEFT, padx=(4, 10))
+        Label(row1, text="W (in):").pack(side=LEFT)
+        Entry(row1, textvariable=self.vector_fig_width_var, width=4).pack(side=LEFT, padx=(4, 10))
+        Label(row1, text="H:").pack(side=LEFT)
+        Entry(row1, textvariable=self.vector_fig_height_var, width=4).pack(side=LEFT, padx=(4, 0))
+        
+        row2 = Frame(pub_section)
+        row2.pack(fill=X, padx=5, pady=2)
+        Label(row2, text="Font:").pack(side=LEFT)
+        ttk.Combobox(row2, textvariable=self.vector_font_family_var, values=("Arial", "Times New Roman", "Helvetica", "Courier New"), width=12).pack(side=LEFT, padx=(4, 10))
+        Label(row2, text="Size:").pack(side=LEFT)
+        Entry(row2, textvariable=self.vector_font_size_var, width=4).pack(side=LEFT, padx=(4, 10))
+        Label(row2, text="Palette:").pack(side=LEFT)
+        ttk.Combobox(row2, textvariable=self.vector_palette_var, values=("default", "tab10", "Set2", "Dark2", "Paired", "viridis"), width=8).pack(side=LEFT, padx=(4, 0))
 
         filter_box = LabelFrame(right_col, text="Input Filters")
         filter_box.pack(fill=BOTH, pady=(0, 10))
@@ -3734,9 +3764,9 @@ class ScannerGUI:
         thread.start()
 
     def run_vector_visualization(self) -> None:
-        if not VECTOR_VIZ_SCRIPT.is_file():
+        if not PUBLICATION_VIZ_SCRIPT.is_file():
             messagebox.showerror(
-                "Missing script", f"Could not find {VECTOR_VIZ_SCRIPT.name} next to this GUI."
+                "Missing script", f"Could not find {PUBLICATION_VIZ_SCRIPT.name} next to this GUI."
             )
             return
         dataset_paths: List[str] = []
@@ -3808,16 +3838,22 @@ class ScannerGUI:
                 messagebox.showerror("Invalid file", f"No file found at '{path}'.")
                 return
 
+        fmt = self.vector_output_format_var.get().strip() or "png"
         output_value = (self.vector_output_var.get() or "").strip()
         if not output_value:
-            output_value = str(self._get_output_dir() / "chromosome_tracks.svg")
+            output_value = str(self._get_output_dir() / f"chromosome_tracks.{fmt}")
             self.vector_output_var.set(output_value)
+        else:
+            p = Path(output_value)
+            if p.suffix.lower() != f".{fmt}":
+                output_value = str(p.with_suffix(f".{fmt}"))
+                self.vector_output_var.set(output_value)
         output_path = Path(output_value)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         cmd = [
             sys.executable,
-            str(VECTOR_VIZ_SCRIPT),
+            str(PUBLICATION_VIZ_SCRIPT),
         ]
         cmd.extend(dataset_paths)
         for kind in dataset_kinds:
@@ -3829,6 +3865,13 @@ class ScannerGUI:
         for style in dataset_styles:
             cmd.extend(["--input-style", style])
         cmd.extend(["--output", str(output_path)])
+        cmd.extend(["--output-format", fmt])
+        cmd.extend(["--dpi", self.vector_dpi_var.get().strip() or "300"])
+        cmd.extend(["--fig-width", self.vector_fig_width_var.get().strip() or "12.0"])
+        cmd.extend(["--fig-height", self.vector_fig_height_var.get().strip() or "8.0"])
+        cmd.extend(["--font-family", self.vector_font_family_var.get().strip() or "Arial"])
+        cmd.extend(["--font-size", self.vector_font_size_var.get().strip() or "12"])
+        cmd.extend(["--palette", self.vector_palette_var.get().strip() or "default"])
         label_mode = (self.vector_label_mode_var.get() or "gene+coords").strip()
         if label_mode not in {"none", "gene", "gene+coords"}:
             label_mode = "gene+coords"
