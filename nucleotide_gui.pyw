@@ -316,6 +316,10 @@ class ScannerGUI:
         self.combined_base_widget = None
         self.combined_repeat_widget = None
         self.combined_self_comp_widget = None
+        self.combined_nt_sub_window_var = StringVar(value="")
+        self.combined_nt_sub_offset_var = StringVar(value="0")
+        self.combined_pep_sub_window_var = StringVar(value="")
+        self.combined_pep_sub_offset_var = StringVar(value="0")
         self.combined_frame_vars = {
             "+0": BooleanVar(value=True),
             "+1": BooleanVar(value=True),
@@ -1445,7 +1449,9 @@ class ScannerGUI:
             text=(
                 "Search for regions that satisfy both nucleotide and peptide search criteria simultaneously. "
                 "The genome is scanned for nucleotide motifs, and the resulting windows are translated into "
-                "amino acids based on the selected reading frames to check for peptide motifs and properties."
+                "amino acids based on the selected reading frames to check for peptide motifs and properties. "
+                "You can define an overall search window (e.g., 5000 nt) and then specify smaller subwindows "
+                "within it for the nucleotide and peptide parts to find motifs that are spaced further apart."
             ),
             wraplength=800,
             justify=LEFT,
@@ -1535,6 +1541,14 @@ class ScannerGUI:
         self._add_labeled_entry(row_c, "Fwd:", self.combined_comb_fwd_var, 6)
         self._add_labeled_entry(row_c, "Rev:", self.combined_comb_rev_var, 6)
         self._add_labeled_entry(row_c, "Overlap:", self.combined_comb_overlap_var, 6)
+        
+        sub_row = Frame(param_section)
+        sub_row.pack(fill=X, padx=5, pady=(0, 5))
+        Label(sub_row, text="Subwindow (Length:Offset) - Optional:", font=("Segoe UI", 9, "italic")).pack(side=LEFT, padx=(0, 4))
+        self._add_labeled_entry(sub_row, "NT Len:", self.combined_nt_sub_window_var, 6)
+        self._add_labeled_entry(sub_row, "NT Off:", self.combined_nt_sub_offset_var, 6)
+        self._add_labeled_entry(sub_row, "Pep Len:", self.combined_pep_sub_window_var, 6)
+        self._add_labeled_entry(sub_row, "Pep Off:", self.combined_pep_sub_offset_var, 6)
 
         Button(
             param_section,
@@ -2827,6 +2841,16 @@ class ScannerGUI:
         for a in pep_amino_content: cmd.extend(["--amino-content", a])
         for r in pep_repeats: cmd.extend(["--pep-repeat", r])
         for f in frames: cmd.extend(["--frame", f])
+        
+        nt_sub_window = self.combined_nt_sub_window_var.get().strip()
+        nt_sub_offset = self.combined_nt_sub_offset_var.get().strip()
+        pep_sub_window = self.combined_pep_sub_window_var.get().strip()
+        pep_sub_offset = self.combined_pep_sub_offset_var.get().strip()
+        
+        if nt_sub_window: cmd.extend(["--nt-sub-window", nt_sub_window])
+        if nt_sub_offset: cmd.extend(["--nt-sub-offset", nt_sub_offset])
+        if pep_sub_window: cmd.extend(["--pep-sub-window", pep_sub_window])
+        if pep_sub_offset: cmd.extend(["--pep-sub-offset", pep_sub_offset])
         
         cmd.extend(["--pep-mismatches", pep_mismatches])
         

@@ -92,6 +92,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pep-repeat", action="append", default=[])
     parser.add_argument("--frame", action="append", default=None, help="Reading frame (+0, -1, etc.)")
     parser.add_argument("--pep-mismatches", type=int, default=0)
+    
+    # Subwindow params
+    parser.add_argument("--nt-sub-window", type=int, help="NT subwindow length")
+    parser.add_argument("--nt-sub-offset", type=int, default=0, help="NT subwindow offset")
+    parser.add_argument("--pep-sub-window", type=int, help="Peptide subwindow length")
+    parser.add_argument("--pep-sub-offset", type=int, default=0, help="Peptide subwindow offset")
 
     return parser.parse_args()
 
@@ -111,8 +117,13 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
     seq_id, sequence = payload
     
     config = _WORKER_CONFIG
-    window = config["window"]
+    overall_window = config["window"]
     step = config["step"]
+    
+    nt_sub_window = config["nt_sub_window"]
+    nt_sub_offset = config["nt_sub_offset"]
+    pep_sub_window = config["pep_sub_window"]
+    pep_sub_offset = config["pep_sub_offset"]
     
     nt_hits = []
     strands = config.get("strand_selections") or ["forward"]
@@ -121,7 +132,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
         
     if "forward" in strands:
         hits = scan_sequence(
-            seq_id, sequence, window, step,
+            seq_id, sequence, nt_sub_window, step,
             motifs=config["nt_motifs"],
             base_constraints=config["base_constraints"],
             repeat_constraints=config["repeat_constraints"],
@@ -145,7 +156,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             return seq_len - end + 1, seq_len - start
             
         hits = scan_sequence(
-            seq_id, rc_seq, window, step,
+            seq_id, rc_seq, nt_sub_window, step,
             motifs=config["nt_motifs"],
             base_constraints=config["base_constraints"],
             repeat_constraints=config["repeat_constraints"],
@@ -192,13 +203,33 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
     
     for hit in nt_hits:
         strand = hit["strand"]
-        hit_seq = hit["window_sequence"].upper()
+        
+        # We found NT hit in some window. 
+        # But we want to re-anchor it to an OVERALL window.
+        # scan_sequence returns window_start relative to the sequence provided.
+        # If it's reverse strand, it was RC'd.
+        
+        nt_start_in_scan = hit["window_start"]
+        seq_len = len(sequence)
+        
+        # Candidate overall window start relative to the scanned sequence (RC'd if strand is -)
+        can_overall_start = nt_start_in_scan - nt_sub_offset
+        can_overall_end = can_overall_start + overall_window - 1
+        
+        # Current window sequence in the scan (RC'd if strand is -)
+        scanned_seq = sequence if strand == "+" else reverse_complement(sequence)
+        
+        if can_overall_start < 1 or can_overall_end > len(scanned_seq):
+            continue
+            
+        overall_subseq = scanned_seq[can_overall_start - 1 : can_overall_end]
+        pep_subseq_local = overall_subseq[pep_sub_offset : pep_sub_offset + pep_sub_window]
         
         for f_strand, f_offset in frames:
             if f_strand == "+":
-                subseq = hit_seq if strand == "+" else reverse_complement(hit_seq)
+                subseq = pep_subseq_local
             else:
-                subseq = reverse_complement(hit_seq) if strand == "+" else hit_seq
+                subseq = reverse_complement(pep_subseq_local)
                     
             subseq = subseq[f_offset:]
             aa_seq = translate_sequence(subseq)
@@ -238,7 +269,19 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
                 
             eff = calc_codon_efficiency(subseq)
             
+            # Map overall window back to genome coords
+            if strand == "+":
+                overall_start_gen = can_overall_start
+                overall_end_gen = can_overall_end
+            else:
+                overall_start_gen = seq_len - can_overall_end + 1
+                overall_end_gen = seq_len - can_overall_start + 1
+                
             comb_hit = hit.copy()
+            comb_hit["window_start"] = overall_start_gen
+            comb_hit["window_end"] = overall_end_gen
+            comb_hit["window_sequence"] = overall_subseq
+            comb_hit["pep_subwindow_sequence"] = pep_subseq_local
             comb_hit["pep_frame"] = f"{f_strand}{f_offset}"
             comb_hit["peptide_sequence"] = aa_seq
             comb_hit["matched_pep_motifs"] = [(m, mm) for m, mm in match_records]
@@ -296,6 +339,11 @@ def main():
         "pep_content": pep_content,
         "pep_repeats": pep_repeats,
         "pep_mismatches": args.pep_mismatches,
+        
+        "nt_sub_window": args.nt_sub_window or args.window,
+        "nt_sub_offset": args.nt_sub_offset,
+        "pep_sub_window": args.pep_sub_window or args.window,
+        "pep_sub_offset": args.pep_sub_offset,
     }
     
     worker_count = args.workers if args.workers > 0 else os.cpu_count() or 1
