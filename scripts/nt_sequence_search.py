@@ -71,6 +71,7 @@ CHROMOSOME_NUMBER_ALIASES = {"X": 23, "Y": 24}
 CHROMOSOME_NUMBER_RANGE = tuple(range(1, 25))
 
 MOTIF_REGEX_CACHE: Dict[str, Pattern[str]] = {}
+SELF_COMP_TOKEN_CACHE: Dict[str, Tuple["PatternToken", ...]] = {}
 
 
 @dataclass(frozen=True)
@@ -131,6 +132,7 @@ class MotifSelfCompConstraint:
     min_comp_len: int = 1   # Now represents number of MATCHING bases
     max_comp_len: int | None = None
     excluded_motifs: Sequence[str] = field(default_factory=list)
+    compiled_motif: MotifConstraint | None = None
 
 
 @dataclass(frozen=True)
@@ -222,10 +224,11 @@ def parse_region_specs(parser: argparse.ArgumentParser, specs: Sequence[str]) ->
     return filters
 
 
-def prefixes_for_classes(classes: Sequence[str] | None) -> Tuple[str, ...]:
-    desired = classes or DEFAULT_SEQUENCE_CLASSES
+def prefixes_for_classes(classes: Sequence[str] | None) -> Tuple[str, ...] | None:
+    if not classes:
+        return None
     prefixes: List[str] = []
-    for class_name in desired:
+    for class_name in classes:
         prefixes.extend(SEQUENCE_CLASS_PREFIXES.get(class_name, ()))
     # Preserve order but drop duplicates
     ordered_unique = list(dict.fromkeys(prefixes))
@@ -647,6 +650,15 @@ def parse_motif_self_comp_specs(
                 else:
                     excluded_motifs = [m.strip().upper() for m in p3.split(",") if m.strip()]
             
+            # Build MotifConstraint once for caching
+            cached_tokens = build_pattern_tokens(pattern)
+            compiled_motif = MotifConstraint(
+                label=pattern,
+                required_count=1,
+                pattern=pattern,
+                regex=None,
+                tokens=cached_tokens,
+            )
             constraints.append(
                 MotifSelfCompConstraint(
                     motif_pattern=pattern,
@@ -655,7 +667,8 @@ def parse_motif_self_comp_specs(
                     max_comp_len=max_len,
                     min_mismatches=min_mm,
                     max_mismatches=max_mm,
-                    excluded_motifs=excluded_motifs
+                    excluded_motifs=excluded_motifs,
+                    compiled_motif=compiled_motif
                 )
             )
         else:
@@ -675,6 +688,15 @@ def parse_motif_self_comp_specs(
                 else:
                     excluded_motifs = [m.strip().upper() for m in p3.split(",") if m.strip()]
             
+            # Build MotifConstraint once for caching
+            cached_tokens = build_pattern_tokens(pattern)
+            compiled_motif = MotifConstraint(
+                label=pattern,
+                required_count=1,
+                pattern=pattern,
+                regex=None,
+                tokens=cached_tokens,
+            )
             constraints.append(
                 MotifSelfCompConstraint(
                     motif_pattern=pattern,
@@ -684,7 +706,8 @@ def parse_motif_self_comp_specs(
                     sec2_len=s2_len,
                     min_mismatches=min_mm,
                     max_mismatches=max_mm,
-                    excluded_motifs=excluded_motifs
+                    excluded_motifs=excluded_motifs,
+                    compiled_motif=compiled_motif
                 )
             )
     return constraints
@@ -738,13 +761,20 @@ def check_motif_self_comp(
 ) -> bool:
     """Return True if at least one motif match in window_seq satisfies self-complementarity."""
     seq = window_seq.upper()
-    temp_constraint = MotifConstraint(
-        label=constraint.motif_pattern,
-        required_count=1,
-        pattern=constraint.motif_pattern,
-        regex=None,
-        tokens=build_pattern_tokens(constraint.motif_pattern),
-    )
+    if constraint.compiled_motif:
+        temp_constraint = constraint.compiled_motif
+    else:
+        cached_tokens = SELF_COMP_TOKEN_CACHE.get(constraint.motif_pattern)
+        if cached_tokens is None:
+            cached_tokens = build_pattern_tokens(constraint.motif_pattern)
+            SELF_COMP_TOKEN_CACHE[constraint.motif_pattern] = cached_tokens
+        temp_constraint = MotifConstraint(
+            label=constraint.motif_pattern,
+            required_count=1,
+            pattern=constraint.motif_pattern,
+            regex=None,
+            tokens=cached_tokens,
+        )
     matches = motif_matches(seq, temp_constraint, max_motif_mismatches)
     if not matches:
         return False
@@ -933,12 +963,16 @@ def translate_iupac_pattern(pattern: str) -> str:
 def iter_nc_sequences(
     fasta_path: Path, record_prefixes: Sequence[str] | None = None
 ) -> Iterable[Tuple[str, str]]:
-    """Yield (sequence_id, sequence) pairs for headers starting with provided prefixes."""
+    """Yield (sequence_id, sequence) pairs. If record_prefixes is None, all sequences are yielded."""
     header: str | None = None
     seq_chunks: List[str] = []
     include_current = False
-    prefixes = tuple(record_prefixes) if record_prefixes else SEQUENCE_CLASS_PREFIXES["chromosome"]
-    normalized_prefixes = tuple(prefix.upper() for prefix in prefixes)
+    
+    if record_prefixes is None:
+        normalized_prefixes = None
+    else:
+        normalized_prefixes = tuple(prefix.upper() for prefix in record_prefixes)
+
     with fasta_path.open("r", encoding="utf-8") as handle:
         for raw_line in handle:
             line = raw_line.strip()
@@ -949,7 +983,10 @@ def iter_nc_sequences(
                     yield format_seq_id(header), "".join(seq_chunks)
                 header = line
                 header_upper = header.upper()
-                include_current = any(header_upper.startswith(prefix) for prefix in normalized_prefixes)
+                if normalized_prefixes is None:
+                    include_current = True
+                else:
+                    include_current = any(header_upper.startswith(prefix) for prefix in normalized_prefixes)
                 seq_chunks = []
             elif include_current:
                 seq_chunks.append(line.upper())
@@ -964,13 +1001,27 @@ def format_seq_id(header: str | None) -> str:
 
 
 def build_prefix_counts(sequence: str) -> Dict[str, List[int]]:
-    prefix = {base: [0] * (len(sequence) + 1) for base in BASES}
-    for idx, nucleotide in enumerate(sequence, start=1):
-        for base in BASES:
-            prefix[base][idx] = prefix[base][idx - 1]
-        if nucleotide in prefix:
-            prefix[nucleotide][idx] += 1
-    return prefix
+    seq_len = len(sequence)
+    a = [0] * (seq_len + 1)
+    c = [0] * (seq_len + 1)
+    g = [0] * (seq_len + 1)
+    t = [0] * (seq_len + 1)
+    cur_a = cur_c = cur_g = cur_t = 0
+    for idx, nuc in enumerate(sequence):
+        if nuc == 'A':
+            cur_a += 1
+        elif nuc == 'C':
+            cur_c += 1
+        elif nuc == 'G':
+            cur_g += 1
+        elif nuc == 'T':
+            cur_t += 1
+        pos = idx + 1
+        a[pos] = cur_a
+        c[pos] = cur_c
+        g[pos] = cur_g
+        t[pos] = cur_t
+    return {"A": a, "C": c, "G": g, "T": t}
 
 
 def _vectorized_candidate_positions(
@@ -1270,6 +1321,7 @@ def build_hit_record(
     region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     max_motif_mismatches: int = 0,
     self_comp_constraints: Sequence[MotifSelfCompConstraint] | None = None,
+    precalculated_motif_spans: List[List[Tuple[int, int]]] | None = None,
 ) -> Dict[str, object] | None:
     analysis = analysis_sequence.upper()
     if not analysis:
@@ -1277,8 +1329,11 @@ def build_hit_record(
     window_len = len(analysis)
     motif_hits: List[Tuple[str, int]] = []
     motif_spans: List[List[Tuple[int, int]]] = []
-    for constraint in motifs:
-        spans = motif_matches(analysis, constraint, max_motif_mismatches)
+    for idx, constraint in enumerate(motifs):
+        if precalculated_motif_spans is not None and idx < len(precalculated_motif_spans):
+            spans = precalculated_motif_spans[idx]
+        else:
+            spans = motif_matches(analysis, constraint, max_motif_mismatches)
         motif_spans.append(spans)
         count = len(spans)
         motif_hits.append((constraint.label, count))
@@ -1406,13 +1461,9 @@ def build_hit_record_fast(
     if region_filters and not within_region(seq_id, window_start, window_end, region_filters):
         return None
     motif_hits: List[Tuple[str, int]] = []
-    motif_spans: List[List[Tuple[int, int]]] = []
     for idx, constraint in enumerate(motifs):
-        # In fast scan, we have motif_counts but not spans. 
-        # We need to get spans to report motif_sequence.
-        spans = motif_matches(analysis_sequence, constraint, max_motif_mismatches)
-        motif_spans.append(spans)
-        count = len(spans)
+        # Use the count from Cython directly — no need to re-run motif_matches
+        count = motif_counts[idx] if idx < len(motif_counts) else 0
         motif_hits.append((constraint.label, count))
     base_pct_pairs: List[Tuple[str, float]] = []
     for idx, (base, _) in enumerate(base_items):
@@ -1422,9 +1473,18 @@ def build_hit_record_fast(
     for idx, (base, _) in enumerate(repeat_items):
         run_len = repeat_runs[idx] if idx < len(repeat_runs) else 0
         repeat_pairs.append((base, run_len))
-    matched_seq = (
-        get_matched_motif_sequence(analysis_sequence, motif_spans) if motifs else ""
-    )
+    # Only compute motif spans when there are motifs to report —
+    # this avoids repeating the expensive motif_matches() that Cython already performed
+    if motifs:
+        motif_spans: List[List[Tuple[int, int]]] = []
+        for idx, constraint in enumerate(motifs):
+            if idx < len(motif_counts) and motif_counts[idx] > 0:
+                motif_spans.append(motif_matches(analysis_sequence, constraint, max_motif_mismatches))
+            else:
+                motif_spans.append([])
+        matched_seq = get_matched_motif_sequence(analysis_sequence, motif_spans)
+    else:
+        matched_seq = ""
     pal_len = pal_end_offset - pal_start_offset if pal_start_offset >= 0 and pal_end_offset > pal_start_offset else 0
     palindrome_enabled = bool(palindrome_config.get("enabled")) if palindrome_config else False
     palindrome_min_len = int(palindrome_config.get("min_len", 0) or 0) if palindrome_config else 0
@@ -1684,6 +1744,27 @@ def scan_combined_windows(
         reverse_part = reverse_complement(reverse_source).lower()
         display_seq = forward_part + reverse_part
         analysis_seq = (forward_part + reverse_part).upper()
+
+        # Enforce "desired motif in both strands" as requested.
+        # This excludes windows that would only match a forward-only or reverse-only scan.
+        if motifs:
+            match_both = True
+            pre_spans: List[List[Tuple[int, int]]] = []
+            for constraint in motifs:
+                fwd_spans = motif_matches(forward_part, constraint, max_motif_mismatches)
+                rev_spans = motif_matches(reverse_part.upper(), constraint, max_motif_mismatches)
+                if not fwd_spans or not rev_spans:
+                    match_both = False
+                    break
+                # Shift reverse spans to match analysis_seq (forward_part + reverse_part)
+                offset = len(forward_part)
+                shifted_rev = [(s + offset, e + offset) for s, e in rev_spans]
+                pre_spans.append(fwd_spans + shifted_rev)
+            if not match_both:
+                continue
+        else:
+            pre_spans = None
+
         window_start = start + 1
         window_end = reverse_region_end
         # Strand-specific coordinate ranges for annotation
@@ -1706,6 +1787,7 @@ def scan_combined_windows(
             region_filters=region_filters,
             max_motif_mismatches=max_motif_mismatches,
             self_comp_constraints=self_comp_constraints,
+            precalculated_motif_spans=pre_spans,
         )
         if hit:
             hit["forward_start"] = fwd_start
@@ -1951,7 +2033,8 @@ def main() -> int:
     repeat_constraints = parse_max_repeat_specs(parser, repeat_specs)
     exclude_motifs = parse_exclude_motifs(parser, args.exclude_motif or [])
     self_comp_constraints = parse_motif_self_comp_specs(parser, args.motif_self_comp or [])
-    sequence_classes = tuple(args.sequence_classes) if args.sequence_classes else DEFAULT_SEQUENCE_CLASSES
+    # Use explicitly requested classes, or None (meaning scan all)
+    sequence_classes = args.sequence_classes or None
     record_prefixes = prefixes_for_classes(sequence_classes)
     sequences = list(iter_nc_sequences(fasta_path, record_prefixes))
     allowed_sequences = {normalize_seq_name(seq) for seq in args.sequence_id if seq}
@@ -2057,6 +2140,15 @@ def main() -> int:
             f"Recorded {len(all_hits)} matching windows to "
             f"{output_dir / (args.output_prefix + '.tsv')}."
         )
+        # Report total motif counts
+        motif_counts = {}
+        for hit in all_hits:
+            for m_label, m_count in hit.get("motif_hits", []):
+                motif_counts[m_label] = motif_counts.get(m_label, 0) + m_count
+        if motif_counts:
+            print("\nTotal motif occurrences found in matching windows:")
+            for label, count in sorted(motif_counts.items()):
+                print(f"  {label}: {count}")
     return 0
 
 

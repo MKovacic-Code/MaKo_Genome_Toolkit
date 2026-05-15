@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable, Dict, List
 import csv
 import configparser
+import traceback
 from tkinter import (
     BOTH,
     BOTTOM,
@@ -45,30 +46,11 @@ from tkinter import (
 )
 from tkinter import simpledialog
 from tkinter import ttk
-from mako.gui.tabs.tools import ToolsTab
 
 ROOT_DIR = Path(__file__).resolve().parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-try:
-    from mako.core.paths import (
-        SCRIPTS_DIR, SCAN_SCRIPT, ANALYSIS_SCRIPT, ANNOTATION_SCRIPT, 
-        VISUALIZER_SCRIPT, PUBLICATION_VIZ_SCRIPT, GENE_SCRIPT, TRIPLEX_SCRIPT,
-        SPLIT_RNA_SCRIPT, SCORE_RNA_SCRIPT, ANNOTATE_TRIPLEX_SCRIPT,
-        TRIPLEX_GENE_SCRIPT, PEPTIDE_SCRIPT, PEPTIDE_ANNOTATION_SCRIPT
-    )
-    from mako.core.constants import (
-        TAB_ACCENTS, VECTOR_CLASS_COLORS, VECTOR_CLASS_DISPLAY, 
-        VECTOR_DATASET_COLORS, CLASS_LEGEND_ORDER
-    )
-except ImportError:
-    # Fallback for development if mako package isn't structured yet
-    SCRIPTS_DIR = ROOT_DIR / "scripts"
-    SCAN_SCRIPT = SCRIPTS_DIR / "nt_sequence_search.py"
-    # ... (keeping simplified fallback for robustness if needed, but we just created them)
-    # Actually, we should rely on the imports now.
-    raise
+SCRIPTS_DIR = ROOT_DIR / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 # Tool-tab analysis imports (guarded so GUI still loads if a script is missing)
 try:
@@ -92,6 +74,7 @@ except Exception:
     _TOOLS_AVAILABLE = False
 
 DEFAULT_DATA_DIR_NAME = "data_human_homo_sapiens"
+DATA_DIR_PREFIX = "data_"
 PROFILE_STORE_PATH = ROOT_DIR / "chemistry_profiles.json"
 BUILTIN_CHEMISTRY_PROFILES = {
     "relaxed": {
@@ -105,6 +88,73 @@ BUILTIN_CHEMISTRY_PROFILES = {
         "max_repeat": ["G:4", "C:4"],
         "motifs": ["GGGN{1,7}GGG:1"],
     },
+}
+
+SCAN_SCRIPT = SCRIPTS_DIR / "nt_sequence_search.py"
+ANALYSIS_SCRIPT = SCRIPTS_DIR / "nt_sequence_G4_TD_analysis.py"
+ANNOTATION_SCRIPT = SCRIPTS_DIR / "nt_sequence_annotation.py"
+VISUALIZER_SCRIPT = SCRIPTS_DIR / "chromosome_visualizer.py"
+PUBLICATION_VIZ_SCRIPT = SCRIPTS_DIR / "publication_visualizer.py"
+GENE_SCRIPT = SCRIPTS_DIR / "exctract_genes_nt_sequence_annotated.py"
+TRIPLEX_SCRIPT = SCRIPTS_DIR / "triplex_search.py"
+SPLIT_RNA_SCRIPT = SCRIPTS_DIR / "rna_sequence_windows_split.py"
+SCORE_RNA_SCRIPT = SCRIPTS_DIR / "rna_sequence_windows_scoring.py"
+ANNOTATE_TRIPLEX_SCRIPT = SCRIPTS_DIR / "triplex_annotation.py"
+TRIPLEX_GENE_SCRIPT = SCRIPTS_DIR / "exctract_genes_triplex_annotated.py"
+PEPTIDE_SCRIPT = SCRIPTS_DIR / "peptide_coding_search.py"
+PEPTIDE_ANNOTATION_SCRIPT = SCRIPTS_DIR / "peptide_annotation.py"
+
+try:
+    from chromosome_vector_visualizer import (
+        CLASS_COLOR_MAP as VECTOR_CLASS_COLORS,
+        CLASS_DISPLAY as VECTOR_CLASS_DISPLAY,
+        DATASET_COLORS as VECTOR_DATASET_COLORS,
+    )
+except Exception:
+    VECTOR_CLASS_COLORS = {
+        "lnc_rna": "#8e44ad",
+        "mrna": "#e63946",
+        "mirna": "#457b9d",
+        "pseudogene": "#f77f00",
+        "five_prime_utr": "#43aa8b",
+        "three_prime_utr": "#577590",
+    }
+    VECTOR_CLASS_DISPLAY = {
+        "lnc_rna": "lncRNA",
+        "mrna": "mRNA",
+        "mirna": "miRNA",
+        "pseudogene": "Pseudogene",
+        "five_prime_utr": "5' UTR",
+        "three_prime_utr": "3' UTR",
+    }
+    VECTOR_DATASET_COLORS = [
+        "#ef476f",
+        "#118ab2",
+        "#06d6a0",
+        "#ffd166",
+        "#073b4c",
+        "#b5179e",
+        "#4895ef",
+        "#ffb703",
+        "#219ebc",
+    ]
+
+CLASS_LEGEND_ORDER = [
+    "lnc_rna",
+    "mrna",
+    "mirna",
+    "pseudogene",
+    "five_prime_utr",
+    "three_prime_utr",
+]
+
+TAB_ACCENTS = {
+    "inputs": "#0f766e",
+    "scanner": "#1d4ed8",
+    "peptide": "#b45309",
+    "triplex": "#7c3aed",
+    "viz": "#f97316",
+    "tools": "#059669",
 }
 
 
@@ -142,10 +192,25 @@ class ToolTip:
 
 
 class ScannerGUI:
+    NON_PATH_KEYS = {
+        "output_name", "selected_genome", "triplex_input_mode",
+        "vector_annotation_column", "vector_label_mode",
+        "vector_seq_ids", "vector_region_filters", "vector_gene_filters",
+        "palindrome_min_len", "top_oligos",
+    }
+
     def __init__(self, root: Tk) -> None:
         self.root = root
         self.root.title("MaKo Genome Toolkit")
         self.root.geometry("1700x1024")
+
+        # Set Window Icon
+        icon_path = ROOT_DIR / "assets" / "backpack_icon.ico"
+        if icon_path.exists():
+            try:
+                self.root.iconbitmap(str(icon_path))
+            except Exception as e:
+                print(f"Warning: Could not load icon: {e}")
 
         self.genome_choices = self._discover_genome_dirs()
         self._genome_slug_to_path = {choice["slug"]: choice["path"] for choice in self.genome_choices}
@@ -399,8 +464,17 @@ class ScannerGUI:
             var.trace_add("write", persist_cb)
         self.triplex_input_mode_var.trace_add("write", lambda *_: self._update_triplex_input_mode())
 
-        # Tools tab logic (modularized)
-        self.tools_tab_logic = ToolsTab(self.root)
+        # Tools tab variables
+        self.tool_g4_input_var = StringVar()
+        self.tool_g4_window_var = StringVar(value="25")
+        self.tool_codon_input_var = StringVar()
+        self.tool_translate_input_var = StringVar()
+        self.tool_thermo_input_var = StringVar()
+        self.tool_thermo_dna_conc_var = StringVar(value="0.001")
+        self.tool_thermo_salt_conc_var = StringVar(value="0.15")
+        self.tool_mutator_input_var = StringVar()
+        self.tool_mutator_target_var = StringVar(value="1.5")
+        self.tool_mutator_max_mut_var = StringVar(value="5")
 
         self.status_var = StringVar(value="Idle")
         self.status_label = None
@@ -530,7 +604,7 @@ class ScannerGUI:
 
         tools_tab = Frame(notebook)
         notebook.add(tools_tab, text="Tools")
-        self.tools_tab_logic.build_ui(tools_tab, "Sequence Tools", TAB_ACCENTS["tools"])
+        self._build_tools_tab(tools_tab, "Sequence Tools", TAB_ACCENTS["tools"])
 
         self._setup_sync_bindings()
         _on_tab_change()
@@ -565,8 +639,8 @@ class ScannerGUI:
                 w2.bind("<KeyRelease>", lambda e, s=w2, t=w1: _sync(s, t))
 
     def _add_tab_banner(self, parent: Frame, title: str, color: str) -> None:
-        add_tab_banner(parent, title, color)
-
+        spacer = Frame(parent, height=6, bg=color)
+        spacer.pack(fill="x", padx=10, pady=(4, 6))
 
     def _build_genome_selector(self, parent: Frame) -> None:
         frame = LabelFrame(parent, text="Genome Dataset")
@@ -1563,7 +1637,7 @@ class ScannerGUI:
         Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("combined")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
         Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("combined")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
 
-        Button(
+        self.combined_run_button = Button(
             param_section,
             text="Run Combined Search",
             bg="#d97706",
@@ -1571,7 +1645,8 @@ class ScannerGUI:
             font=("Segoe UI", 11, "bold"),
             command=self.run_combined_scan,
             height=2,
-        ).pack(fill=BOTH, padx=5, pady=10)
+        )
+        self.combined_run_button.pack(fill=BOTH, padx=5, pady=10)
 
     def _build_triplex_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
@@ -2023,7 +2098,350 @@ class ScannerGUI:
             command=lambda: self._open_path_default(self.vector_output_var.get()),
         ).pack(fill=BOTH, pady=(6, 0))
 
+    def _build_tools_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
+        canvas = Canvas(parent, highlightthickness=0)
+        v_scroll = Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scroll_frame = Frame(canvas)
+        
+        scroll_frame.bind(
+            "<Configure>",
+            lambda _: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=v_scroll.set)
+        
+        v_scroll.pack(side=RIGHT, fill=Y)
+        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        
+        wrapper = Frame(scroll_frame)
+        wrapper.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        self._add_tab_banner(wrapper, heading, accent_color)
+        
+        if not _TOOLS_AVAILABLE:
+            Label(wrapper, text="Analysis scripts (nt_sequence_G4_TD_analysis.py) not found. Tools tab disabled.", fg="red").pack(pady=20)
+            return
 
+        # 1. G4Hunter Scorer
+        g4_frame, g4_content = self._make_collapsible_tool(wrapper, "G4Hunter Scorer")
+        Label(g4_content, text="NT Sequence:").pack(anchor="w")
+        g4_text = scrolledtext.ScrolledText(g4_content, height=4, width=60)
+        g4_text.pack(fill=X, pady=(0, 6))
+        row = Frame(g4_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "Window Size:", self.tool_g4_window_var, 6)
+        Button(row, text="Run Analysis", command=lambda: self._run_g4hunter_tool(g4_text, g4_results)).pack(side=LEFT, padx=10)
+        g4_results = scrolledtext.ScrolledText(g4_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        g4_results.pack(fill=X, pady=6)
+        Button(g4_content, text="Save Results", command=lambda: self._save_tool_results(g4_results)).pack(side=RIGHT, padx=2)
+        Button(g4_content, text="Copy Results", command=lambda: self._copy_tool_results(g4_results)).pack(side=RIGHT, padx=2)
+
+        # 2. Codon Optimizer
+        codon_frame, codon_content = self._make_collapsible_tool(wrapper, "Codon Optimizer")
+        Label(codon_content, text="Input NT or Peptide Sequence:").pack(anchor="w")
+        codon_text = scrolledtext.ScrolledText(codon_content, height=4, width=60)
+        codon_text.pack(fill=X, pady=(0, 6))
+        Button(codon_content, text="Optimize Sequence", command=lambda: self._run_codon_optimizer_tool(codon_text, codon_results)).pack(anchor="w")
+        codon_results = scrolledtext.ScrolledText(codon_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        codon_results.pack(fill=X, pady=6)
+        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(side=RIGHT, padx=2)
+        Button(codon_content, text="Copy Results", command=lambda: self._copy_tool_results(codon_results)).pack(side=RIGHT, padx=2)
+
+        # 3. 6-Frame Translator
+        trans_frame, trans_content = self._make_collapsible_tool(wrapper, "6-Frame Translator")
+        Label(trans_content, text="NT Sequence:").pack(anchor="w")
+        trans_text = scrolledtext.ScrolledText(trans_content, height=4, width=60)
+        trans_text.pack(fill=X, pady=(0, 6))
+        Button(trans_content, text="Translate All Frames", command=lambda: self._run_translator_tool(trans_text, trans_results)).pack(anchor="w")
+        trans_results = scrolledtext.ScrolledText(trans_content, height=12, width=60, state="disabled", bg="#f8f9fa")
+        trans_results.pack(fill=X, pady=6)
+        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(side=RIGHT, padx=2)
+        Button(trans_content, text="Copy Results", command=lambda: self._copy_tool_results(trans_results)).pack(side=RIGHT, padx=2)
+
+        # 4. Thermodynamic Analyzer
+        thermo_frame, thermo_content = self._make_collapsible_tool(wrapper, "Thermodynamic Analyzer")
+        Label(thermo_content, text="NT Sequence:").pack(anchor="w")
+        thermo_text = scrolledtext.ScrolledText(thermo_content, height=4, width=60)
+        thermo_text.pack(fill=X, pady=(0, 6))
+        row = Frame(thermo_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "DNA Conc (M):", self.tool_thermo_dna_conc_var, 8)
+        self._add_labeled_entry(row, "Salt Conc (M):", self.tool_thermo_salt_conc_var, 8)
+        Button(row, text="Analyze Properties", command=lambda: self._run_thermo_tool(thermo_text, thermo_results)).pack(side=LEFT, padx=10)
+        thermo_results = scrolledtext.ScrolledText(thermo_content, height=10, width=60, state="disabled", bg="#f8f9fa")
+        thermo_results.pack(fill=X, pady=6)
+        Button(thermo_content, text="Save Results", command=lambda: self._save_tool_results(thermo_results)).pack(side=RIGHT, padx=2)
+        Button(thermo_content, text="Copy Results", command=lambda: self._copy_tool_results(thermo_results)).pack(side=RIGHT, padx=2)
+
+        # 5. G4 Mutation Optimizer
+        mut_frame, mut_content = self._make_collapsible_tool(wrapper, "G4 Mutation Optimizer")
+        Label(mut_content, text="NT Sequence:").pack(anchor="w")
+        mut_text = scrolledtext.ScrolledText(mut_content, height=4, width=60)
+        mut_text.pack(fill=X, pady=(0, 6))
+        row = Frame(mut_content)
+        row.pack(fill=X)
+        self._add_labeled_entry(row, "Target G4 Score:", self.tool_mutator_target_var, 6)
+        self._add_labeled_entry(row, "Max Mutations:", self.tool_mutator_max_mut_var, 6)
+        Button(row, text="Optimize G4", command=lambda: self._run_g4_mutator_tool(mut_text, mut_results)).pack(side=LEFT, padx=10)
+        mut_results = scrolledtext.ScrolledText(mut_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        mut_results.pack(fill=X, pady=6)
+        Button(mut_content, text="Save Results", command=lambda: self._save_tool_results(mut_results)).pack(side=RIGHT, padx=2)
+        Button(mut_content, text="Copy Results", command=lambda: self._copy_tool_results(mut_results)).pack(side=RIGHT, padx=2)
+
+    def _make_collapsible_tool(self, parent: Frame, title: str) -> Tuple[LabelFrame, Frame]:
+        lf = LabelFrame(parent, text=f" ▶ {title}", font=("Segoe UI", 10, "bold"), labelanchor="nw")
+        lf.pack(fill=X, pady=5)
+        
+        content = Frame(lf, padx=10, pady=10)
+        content.pack(fill=X)
+        
+        is_expanded = [True]
+        
+        def toggle():
+            if is_expanded[0]:
+                content.pack_forget()
+                lf.configure(text=f" ◀ {title}")
+                is_expanded[0] = False
+            else:
+                content.pack(fill=X)
+                lf.configure(text=f" ▶ {title}")
+                is_expanded[0] = True
+        
+        # Click on the LabelFrame title? Use a small button for reliability
+        btn_row = Frame(lf)
+        # We can't easily put it in the label bar of a LabelFrame in pure Tkinter without hacks
+        # So we'll just put a tiny button at the top of content or better, as a separate header button
+        
+        # Actually, let's use a trick: bind click to the LabelFrame label if possible.
+        # But simpler: just add a toggle button inside the frame at the top.
+        Button(content, text="Collapse", command=toggle, font=("Segoe UI", 8)).pack(anchor="ne")
+        
+        return lf, content
+
+    def _copy_tool_results(self, text_widget: scrolledtext.ScrolledText) -> None:
+        content = text_widget.get("1.0", END).strip()
+        if not content:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(content)
+        self.root.update()
+        # Optionally show a status message if you want
+        
+    def _save_tool_results(self, text_widget: scrolledtext.ScrolledText) -> None:
+        content = text_widget.get("1.0", END).strip()
+        if not content:
+            return
+        
+        path = filedialog.asksaveasfilename(
+            defaultextension=".tsv",
+            filetypes=[("TSV files", "*.tsv"), ("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+            
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            messagebox.showinfo("Success", f"Results saved to {path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save results: {e}")
+
+    def _run_g4hunter_tool(self, input_widget, output_widget) -> None:
+        seq = input_widget.get("1.0", END).strip().upper()
+        if not seq: return
+        
+        try:
+            w_size = int(self.tool_g4_window_var.get())
+        except: w_size = 25
+        
+        g4h = _g4hunter_score(seq, w_size)
+        g4b = _g4boost_score(seq)
+        counts, gc_pct = _base_composition(seq)
+        
+        res = []
+        res.append(f"G4Hunter Score (window={w_size}): {g4h:.4f}")
+        res.append(f"G4Boost Score: {g4b:.4f}")
+        res.append(f"GC Content: {gc_pct:.2f}%")
+        res.append(f"Base Counts: {', '.join(f'{b}={c}' for b, c in counts.items())}")
+        res.append("\nSequence:")
+        res.append(seq)
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_codon_optimizer_tool(self, input_widget, output_widget) -> None:
+        raw_input = input_widget.get("1.0", END).strip()
+        if not raw_input: return
+        
+        # Check if peptide or NT
+        is_peptide = any(c not in "ACGTUNacgtun \n\r\t" for c in raw_input)
+        
+        optimized = []
+        if is_peptide:
+            # Reverse translate using best codons
+            # We need a reverse codon map
+            rev_map = {}
+            for codon, aa in _CODON_TABLE.items():
+                weight = _CODON_WEIGHTS.get(codon, 0.0)
+                if aa not in rev_map or weight > rev_map[aa][1]:
+                    rev_map[aa] = (codon, weight)
+            
+            pep = "".join(raw_input.split()).upper()
+            for aa in pep:
+                if aa in rev_map:
+                    optimized.append(rev_map[aa][0])
+                else:
+                    optimized.append("???")
+            opt_seq = "".join(optimized)
+        else:
+            # Re-encode NT sequence
+            nt = "".join(raw_input.split()).upper().replace("U", "T")
+            # Best synonyms for each AA
+            best_synonyms = {}
+            for codon, aa in _CODON_TABLE.items():
+                weight = _CODON_WEIGHTS.get(codon, 0.0)
+                if aa not in best_synonyms or weight > best_synonyms[aa][1]:
+                    best_synonyms[aa] = (codon, weight)
+            
+            for i in range(0, len(nt) - 2, 3):
+                codon = nt[i:i+3]
+                aa = _CODON_TABLE.get(codon)
+                if aa and aa in best_synonyms:
+                    optimized.append(best_synonyms[aa][0])
+                else:
+                    optimized.append(codon)
+            opt_seq = "".join(optimized)
+            
+        cai_before = _calc_codon_efficiency(raw_input) if not is_peptide else 0.0
+        cai_after = _calc_codon_efficiency(opt_seq)
+        
+        res = []
+        res.append(f"Input Type: {'Peptide' if is_peptide else 'Nucleotide'}")
+        if not is_peptide:
+            res.append(f"Codon Efficiency (CAI) Before: {cai_before:.4f}")
+        res.append(f"Codon Efficiency (CAI) After: {cai_after:.4f}")
+        res.append("\nOptimized Sequence:")
+        res.append(opt_seq)
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_translator_tool(self, input_widget, output_widget) -> None:
+        nt = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not nt: return
+        
+        rc = _reverse_complement(nt)
+        
+        res = []
+        res.append("--- Forward Frames ---")
+        for f in range(3):
+            pep = _translate_sequence(nt[f:])
+            res.append(f"Frame +{f}: {pep}")
+            
+        res.append("\n--- Reverse Frames ---")
+        for f in range(3):
+            pep = _translate_sequence(rc[f:])
+            res.append(f"Frame -{f}: {pep}")
+            
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_thermo_tool(self, input_widget, output_widget) -> None:
+        seq = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not seq: return
+        
+        try:
+            conc = float(self.tool_thermo_dna_conc_var.get())
+            salt = float(self.tool_thermo_salt_conc_var.get())
+        except:
+            conc, salt = 0.001, 0.15
+            
+        tm_w = _tm_wallace(seq)
+        tm_nn, dh, ds = _tm_nearest_neighbor(seq, conc, salt)
+        counts, gc_pct = _base_composition(seq)
+        
+        res = []
+        res.append(f"Length: {len(seq)} bp")
+        res.append(f"GC Content: {gc_pct:.2f}%")
+        res.append(f"Tm (Wallace): {tm_w:.1f} °C")
+        res.append(f"Tm (Nearest-Neighbor): {tm_nn:.2f} °C")
+        res.append(f"Delta H: {dh:.2f} kcal/mol")
+        res.append(f"Delta S: {ds:.2f} cal/mol*K")
+        res.append("\n--- Structural Scores ---")
+        res.append(f"i-Motif Score: {_i_motif_score(seq):.4f}")
+        res.append(f"R-Loop Score: {_r_loop_score(seq):.4f}")
+        res.append(f"Hairpin Score: {_hairpin_score(seq):.4f}")
+        res.append(f"CpG Island Score: {_cpg_island_score(seq):.4f}")
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
+
+    def _run_g4_mutator_tool(self, input_widget, output_widget) -> None:
+        seq = "".join(input_widget.get("1.0", END).strip().split()).upper().replace("U", "T")
+        if not seq: return
+        
+        try:
+            target = float(self.tool_mutator_target_var.get())
+            max_mut = int(self.tool_mutator_max_mut_var.get())
+            w_size = int(self.tool_g4_window_var.get())
+        except:
+            target, max_mut, w_size = 1.5, 5, 25
+            
+        current_seq = list(seq)
+        current_score = _g4hunter_score("".join(current_seq), w_size)
+        mutations = []
+        
+        # Greedy optimization
+        for _ in range(max_mut):
+            if current_score >= target:
+                break
+                
+            best_mut = None
+            best_new_score = current_score
+            
+            # Try mutation at each position to a G (since we want to increase G4 score usually)
+            # Actually, G4Hunter score is boosted by G runs and decreased by C runs.
+            for i in range(len(current_seq)):
+                orig = current_seq[i]
+                if orig == 'G': continue
+                
+                for alt in ['G', 'A', 'T']: # Swapping to G is best, but others might help if we are swapping away from C
+                    if alt == orig: continue
+                    current_seq[i] = alt
+                    new_score = _g4hunter_score("".join(current_seq), w_size)
+                    if new_score > best_new_score:
+                        best_new_score = new_score
+                        best_mut = (i, orig, alt)
+                    current_seq[i] = orig
+            
+            if best_mut:
+                idx, o, a = best_mut
+                current_seq[idx] = a
+                current_score = best_new_score
+                mutations.append(f"Pos {idx+1}: {o} -> {a} (New Score: {current_score:.4f})")
+            else:
+                break
+                
+        res = []
+        res.append(f"Original Score: {_g4hunter_score(seq, w_size):.4f}")
+        res.append(f"Final Score: {current_score:.4f}")
+        res.append(f"Mutations Applied: {len(mutations)}")
+        res.append("\n".join(mutations))
+        res.append("\nOptimized Sequence:")
+        res.append("".join(current_seq))
+        
+        output_widget.configure(state="normal")
+        output_widget.delete("1.0", END)
+        output_widget.insert(END, "\n".join(res))
+        output_widget.configure(state="disabled")
 
 
 
@@ -2157,8 +2575,12 @@ class ScannerGUI:
         Label(row, text=label_text).pack(side=LEFT)
 
     def _add_labeled_entry(self, parent: Frame, label: str, variable: StringVar, width: int) -> Entry:
-        return add_labeled_entry(parent, label, variable, width)
-
+        frame = Frame(parent)
+        frame.pack(fill=BOTH, pady=2)
+        Label(frame, text=label, width=24, anchor="w").pack(side=LEFT)
+        entry = Entry(frame, textvariable=variable, width=width)
+        entry.pack(side=LEFT, fill=BOTH, expand=True)
+        return entry
 
     def _add_file_picker(
         self,
@@ -2910,263 +3332,325 @@ class ScannerGUI:
 
 
     def run_combined_scan(self) -> None:
-        fasta_path = self.fasta_var.get().strip()
-        if not fasta_path:
-            messagebox.showerror("Missing input", "Please select a FASTA (.fna) file.")
-            return
-        fasta_path_obj = Path(fasta_path)
-        if not fasta_path_obj.is_file():
-            messagebox.showerror("Invalid file", f"No file found at '{fasta_path}'.")
-            return
-            
-        script_path = SCRIPT_DIR / "combined_sequence_search.py"
-        if not script_path.is_file():
-            messagebox.showerror("Missing script", f"Could not find {script_path.name} next to this GUI.")
-            return
-            
+        self.append_log("Initializing combined search...")
         try:
-            window = int(self.window_var.get())
-            step = int(self.step_var.get())
-            workers = int(self.workers_var.get())
-            comb_fwd = int(self.combined_comb_fwd_var.get().strip() or "0")
-            comb_rev = int(self.combined_comb_rev_var.get().strip() or "0")
-            comb_overlap = int(self.combined_comb_overlap_var.get().strip() or "0")
-        except ValueError as exc:
-            messagebox.showerror("Invalid numeric value", str(exc))
-            return
-            
-        output_prefix = "combined_search_hits"
-        output_name = self.output_name_var.get().strip() or "default"
-        
-        # Get NT params
-        nt_motifs = self._get_advanced_lines(self.combined_nt_motif_widget, "_saved_comb_nt_motif") if self.combined_nt_motif_widget else []
-        exclude_nt_motifs = self._get_advanced_lines(self.combined_exclude_nt_widget, "_saved_comb_excl_nt") if self.combined_exclude_nt_widget else []
-        base_limits = self._get_advanced_lines(self.combined_base_widget, "_saved_comb_base") if self.combined_base_widget else []
-        repeat_limits = self._get_advanced_lines(self.combined_repeat_widget, "_saved_comb_rep") if self.combined_repeat_widget else []
-        self_comp_motifs = self._get_advanced_lines(self.combined_self_comp_widget, "_saved_comb_sc") if self.combined_self_comp_widget else []
-        fwd_nt_motifs = self._get_advanced_lines(self.combined_forward_motif_widget, "_saved_comb_fwd") if self.combined_forward_motif_widget else []
-        rev_nt_motifs = self._get_advanced_lines(self.combined_reverse_motif_widget, "_saved_comb_rev") if self.combined_reverse_motif_widget else []
-        
-        # Get Peptide params
-        pep_motifs = self._get_advanced_lines(self.combined_pep_motif_widget, "_saved_comb_pep_motif") if self.combined_pep_motif_widget else []
-        exclude_pep_motifs = self._get_advanced_lines(self.combined_exclude_pep_widget, "_saved_comb_excl_pep") if self.combined_exclude_pep_widget else []
-        pep_amino_content = self._get_advanced_lines(self.combined_amino_content_widget, "_saved_comb_amino") if self.combined_amino_content_widget else []
-        pep_repeats = self._get_advanced_lines(self.combined_peptide_repeat_widget, "_saved_comb_pep_rep") if self.combined_peptide_repeat_widget else []
-        pep_mismatches = self.combined_pep_mismatches_var.get().strip() or "0"
-        
-        frames = [frame for frame, var in self.combined_frame_vars.items() if var.get()]
-        if not frames:
-            messagebox.showerror("Invalid input", "Please select at least one reading frame.")
-            return
-
-        cmd = [
-            sys.executable,
-            str(script_path),
-            fasta_path,
-            "--window", str(window),
-            "--step", str(step),
-            "--output-prefix", output_prefix,
-            "--output-name", output_name,
-            "--workers", str(workers),
-        ]
-        
-        for m in nt_motifs: cmd.extend(["--nt-motif", m])
-        for m in exclude_nt_motifs: cmd.extend(["--exclude-nt-motif", m])
-        for b in base_limits: cmd.extend(["--base-content", b])
-        for r in repeat_limits: cmd.extend(["--max-repeat", r])
-        for sc in self_comp_motifs: cmd.extend(["--motif-self-comp", sc])
-        
-        # Combined script doesn't support fwd/rev-only natively without prefixes if it uses nt_sequence_search's parsing.
-        # Wait, nt_sequence_search uses `+:` and `-:` prefixes for forward-only and reverse-only motifs!
-        for m in fwd_nt_motifs: cmd.extend(["--nt-motif", f"+:{m}"])
-        for m in rev_nt_motifs: cmd.extend(["--nt-motif", f"-:{m}"])
-        
-        for m in pep_motifs: cmd.extend(["--pep-motif", m])
-        for m in exclude_pep_motifs: cmd.extend(["--exclude-pep-motif", m])
-        for a in pep_amino_content: cmd.extend(["--amino-content", a])
-        for r in pep_repeats: cmd.extend(["--pep-repeat", r])
-        for f in frames: cmd.extend(["--frame", f])
-        
-        nt_sub_window = self.combined_nt_sub_window_var.get().strip()
-        nt_sub_offset = self.combined_nt_sub_offset_var.get().strip()
-        pep_sub_window = self.combined_pep_sub_window_var.get().strip()
-        pep_sub_offset = self.combined_pep_sub_offset_var.get().strip()
-        
-        if nt_sub_window: cmd.extend(["--nt-sub-window", nt_sub_window])
-        if nt_sub_offset: cmd.extend(["--nt-sub-offset", nt_sub_offset])
-        if pep_sub_window: cmd.extend(["--pep-sub-window", pep_sub_window])
-        if pep_sub_offset: cmd.extend(["--pep-sub-offset", pep_sub_offset])
-        
-        cmd.extend(["--pep-mismatches", pep_mismatches])
-        
-        if comb_fwd > 0 and comb_rev > 0:
-            cmd.extend([
-                "--strand", "combined",
-                "--combined-forward-len", str(comb_fwd),
-                "--combined-reverse-len", str(comb_rev),
-                "--combined-overlap", str(comb_overlap)
-            ])
-        
-        # We can add strands based on global checkboxes if needed, or default to all
-        if self.forward_strand_var.get(): cmd.extend(["--strand", "forward"])
-        if self.reverse_strand_var.get(): cmd.extend(["--strand", "reverse"])
-        
-        if self.require_palindrome_var.get():
-            cmd.append("--require-palindrome")
-            pal_min = self.palindrome_min_len_var.get().strip()
-            if pal_min:
-                cmd.extend(["--palindrome-min-len", pal_min])
+            fasta_path = self.fasta_var.get().strip()
+            if not fasta_path:
+                messagebox.showerror("Missing input", "Please select a FASTA (.fna) file.")
+                return
+            fasta_path_obj = Path(fasta_path)
+            if not fasta_path_obj.is_file():
+                messagebox.showerror("Invalid file", f"No file found at '{fasta_path}'.")
+                return
                 
-        if self.non_overlapping_var.get():
-            cmd.append("--non-overlapping")
+            script_path = SCRIPTS_DIR / "combined_sequence_search.py"
+            if not script_path.is_file():
+                messagebox.showerror("Missing script", f"Could not find {script_path.name} next to this GUI.")
+                return
+                
+            try:
+                window = int(self.window_var.get())
+                step = int(self.step_var.get())
+                workers = int(self.workers_var.get())
+                comb_fwd = int(self.combined_comb_fwd_var.get().strip() or "0")
+                comb_rev = int(self.combined_comb_rev_var.get().strip() or "0")
+                comb_overlap = int(self.combined_comb_overlap_var.get().strip() or "0")
+            except ValueError as exc:
+                messagebox.showerror("Invalid numeric value", str(exc))
+                return
+                
+            output_prefix = "combined_search_hits"
+            output_name = self.output_name_var.get().strip() or "default"
+            
+            # Get NT params
+            nt_motifs = self._get_advanced_lines(self.combined_nt_motif_widget, "_saved_comb_nt_motif") if self.combined_nt_motif_widget else []
+            exclude_nt_motifs = self._get_advanced_lines(self.combined_exclude_nt_widget, "_saved_comb_excl_nt") if self.combined_exclude_nt_widget else []
+            base_limits = self._get_advanced_lines(self.combined_base_widget, "_saved_comb_base") if self.combined_base_widget else []
+            repeat_limits = self._get_advanced_lines(self.combined_repeat_widget, "_saved_comb_rep") if self.combined_repeat_widget else []
+            self_comp_motifs = self._get_advanced_lines(self.combined_self_comp_widget, "_saved_comb_sc") if self.combined_self_comp_widget else []
+            fwd_nt_motifs = self._get_advanced_lines(self.combined_forward_motif_widget, "_saved_comb_fwd") if self.combined_forward_motif_widget else []
+            rev_nt_motifs = self._get_advanced_lines(self.combined_reverse_motif_widget, "_saved_comb_rev") if self.combined_reverse_motif_widget else []
+            
+            # Get Peptide params
+            pep_motifs = self._get_advanced_lines(self.combined_pep_motif_widget, "_saved_comb_pep_motif") if self.combined_pep_motif_widget else []
+            exclude_pep_motifs = self._get_advanced_lines(self.combined_exclude_pep_widget, "_saved_comb_excl_pep") if self.combined_exclude_pep_widget else []
+            pep_amino_content = self._get_advanced_lines(self.combined_amino_content_widget, "_saved_comb_amino") if self.combined_amino_content_widget else []
+            pep_repeats = self._get_advanced_lines(self.combined_peptide_repeat_widget, "_saved_comb_pep_rep") if self.combined_peptide_repeat_widget else []
+            pep_mismatches = self.combined_pep_mismatches_var.get().strip() or "0"
+            
+            frames = [frame for frame, var in self.combined_frame_vars.items() if var.get()]
+            if not frames:
+                messagebox.showerror("Invalid input", "Please select at least one reading frame.")
+                return
 
-        # Include sequence/region filters from main tab
-        seq_filters = self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter")
-        reg_filters = self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter")
-        for sf in seq_filters: cmd.extend(["--sequence-id", sf])
-        for rf in reg_filters: cmd.extend(["--region", rf])
-        
-        classes = self._get_sequence_classes()
-        if classes:
-            for c in classes:
-                cmd.extend(["--sequence-class", c])
+            cmd = [
+                sys.executable,
+                str(script_path),
+                fasta_path,
+                "--window", str(window),
+                "--step", str(step),
+                "--output-prefix", output_prefix,
+                "--output-name", output_name,
+                "--workers", str(workers),
+            ]
+            
+            for m in nt_motifs: cmd.extend(["--nt-motif", m])
+            for m in exclude_nt_motifs: cmd.extend(["--exclude-nt-motif", m])
+            for b in base_limits: cmd.extend(["--base-content", b])
+            for r in repeat_limits: cmd.extend(["--max-repeat", r])
+            for sc in self_comp_motifs: cmd.extend(["--motif-self-comp", sc])
+            
+            # Combined script doesn't support fwd/rev-only natively without prefixes
+            for m in fwd_nt_motifs: cmd.extend(["--nt-motif", f"+:{m}"])
+            for m in rev_nt_motifs: cmd.extend(["--nt-motif", f"-:{m}"])
+            
+            for m in pep_motifs: cmd.extend(["--pep-motif", m])
+            for m in exclude_pep_motifs: cmd.extend(["--exclude-pep-motif", m])
+            for a in pep_amino_content: cmd.extend(["--amino-content", a])
+            for r in pep_repeats: cmd.extend(["--pep-repeat", r])
+            for f in frames: cmd.extend(["--frame", f])
+            
+            nt_sub_window = self.combined_nt_sub_window_var.get().strip()
+            nt_sub_offset = self.combined_nt_sub_offset_var.get().strip()
+            pep_sub_window = self.combined_pep_sub_window_var.get().strip()
+            pep_sub_offset = self.combined_pep_sub_offset_var.get().strip()
+            
+            if nt_sub_window: cmd.extend(["--nt-sub-window", nt_sub_window])
+            if nt_sub_offset: cmd.extend(["--nt-sub-offset", nt_sub_offset])
+            if pep_sub_window: cmd.extend(["--pep-sub-window", pep_sub_window])
+            if pep_sub_offset: cmd.extend(["--pep-sub-offset", pep_sub_offset])
+            
+            cmd.extend(["--pep-mismatches", pep_mismatches])
+            
+            if comb_fwd > 0 and comb_rev > 0:
+                cmd.extend([
+                    "--strand", "combined",
+                    "--combined-forward-len", str(comb_fwd),
+                    "--combined-reverse-len", str(comb_rev),
+                    "--combined-overlap", str(comb_overlap)
+                ])
+            
+            # We can add strands based on global checkboxes if needed
+            if self.forward_strand_var.get(): cmd.extend(["--strand", "forward"])
+            if self.reverse_strand_var.get(): cmd.extend(["--strand", "reverse"])
+            
+            if self.require_palindrome_var.get():
+                cmd.append("--require-palindrome")
+                pal_min = self.palindrome_min_len_var.get().strip()
+                if pal_min:
+                    cmd.extend(["--palindrome-min-len", pal_min])
+                    
+            if self.non_overlapping_var.get():
+                cmd.append("--non-overlapping")
 
-        self._run_subprocess(cmd, "Combined Search Scanner")
+            # Include sequence/region filters from main tab
+            seq_filters = self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter")
+            reg_filters = self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter")
+            for sf in seq_filters: cmd.extend(["--sequence-id", sf])
+            for rf in reg_filters: cmd.extend(["--region", rf])
+            
+            # Sequence classes not yet implemented in GUI, default to all
+            classes = self._get_sequence_classes()
+            if classes:
+                for c in classes:
+                    cmd.extend(["--sequence-class", c])
+
+            self.append_log("Running: " + " ".join(cmd))
+            thread = threading.Thread(
+                target=self._execute_command,
+                args=(cmd, getattr(self, "combined_run_button", self.run_button), "Scanning combined windows..."),
+                daemon=True,
+            )
+            thread.start()
+        except Exception as e:
+            import traceback
+            error_msg = f"Unexpected error in run_combined_scan:\n{e}\n\n{traceback.format_exc()}"
+            messagebox.showerror("Execution Error", error_msg)
+            self.append_log(error_msg)
 
     def save_search_profile(self, mode: str) -> None:
-        file_path = filedialog.asksaveasfilename(
-            title=f"Save {mode.capitalize()} Profile",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json")],
-        )
-        if not file_path:
-            return
-
-        data = {
-            "mode": mode,
-            "window": self.window_var.get(),
-            "step": self.step_var.get(),
-            "workers": self.workers_var.get(),
-            "output_name": self.output_name_var.get(),
-            "forward_strand": self.forward_strand_var.get(),
-            "reverse_strand": self.reverse_strand_var.get(),
-            "sequence_filter": self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter"),
-            "region_filter": self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter")
-        }
-
-        if mode in ("nucleotide", "combined"):
-            data.update({
-                "require_palindrome": self.require_palindrome_var.get(),
-                "palindrome_min_len": self.palindrome_min_len_var.get(),
-                "non_overlapping": self.non_overlapping_var.get(),
-                "nt_motifs": self._get_advanced_lines(self.motif_widget, "_saved_motif_text"),
-                "exclude_nt_motifs": self._get_advanced_lines(self.exclude_motif_widget, "_saved_exclude_text"),
-                "base_content": self._get_advanced_lines(self.base_widget, "_saved_base_text"),
-                "repeat_limits": self._get_advanced_lines(self.repeat_widget, "_saved_repeat_text"),
-                "forward_only_motifs": self._get_advanced_lines(self.forward_only_motif_widget, "_saved_forward_only_motif_text"),
-                "reverse_only_motifs": self._get_advanced_lines(self.reverse_only_motif_widget, "_saved_reverse_only_motif_text"),
-                "self_comp": self._get_advanced_lines(self.sc_widget, "_saved_sc_text"),
-            })
-
-        if mode in ("peptide", "combined"):
-            data.update({
-                "pep_motifs": self._get_advanced_lines(self.pep_motif_widget, "_saved_pep_motif"),
-                "exclude_pep_motifs": self._get_advanced_lines(self.pep_exclude_motif_widget, "_saved_pep_exclude"),
-                "amino_content": self._get_advanced_lines(self.pep_amino_widget, "_saved_pep_amino"),
-                "pep_repeats": self._get_advanced_lines(self.pep_repeat_widget, "_saved_pep_repeat"),
-                "frames": self._get_advanced_lines(self.pep_frame_widget, "_saved_pep_frame"),
-                "pep_mismatches": self.peptide_mismatches_var.get(),
-            })
-
-        if mode == "combined":
-            data.update({
-                "combined_strand": self.combined_strand_var.get(),
-                "combined_forward_len": self.combined_forward_var.get(),
-                "combined_reverse_len": self.combined_reverse_var.get(),
-                "combined_overlap": self.combined_overlap_var.get(),
-                "nt_sub_window": self.combined_nt_sub_window_var.get(),
-                "nt_sub_offset": self.combined_nt_sub_offset_var.get(),
-                "pep_sub_window": self.combined_pep_sub_window_var.get(),
-                "pep_sub_offset": self.combined_pep_sub_offset_var.get(),
-            })
-
         try:
+            file_path = filedialog.asksaveasfilename(
+                title=f"Save {mode.capitalize()} Profile",
+                defaultextension=".json",
+                filetypes=[("JSON files", "*.json")],
+            )
+            if not file_path:
+                return
+
+            data = {
+                "mode": mode,
+                "window": self.window_var.get(),
+                "step": self.step_var.get(),
+                "workers": self.workers_var.get(),
+                "output_name": self.output_name_var.get(),
+                "forward_strand": self.forward_strand_var.get(),
+                "reverse_strand": self.reverse_strand_var.get(),
+                "sequence_filter": self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter"),
+                "region_filter": self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter")
+            }
+
+            if mode in ("nucleotide", "combined"):
+                if mode == "nucleotide":
+                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
+                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
+                    sc_rules = self._sc_rules_to_cli_args()
+                else:
+                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.combined_nt_motif_widget, self.combined_exclude_nt_widget, self.combined_base_widget, self.combined_repeat_widget, self.combined_forward_motif_widget, self.combined_reverse_motif_widget)
+                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_comb_nt_motif", "_saved_comb_excl_nt", "_saved_comb_base", "_saved_comb_rep", "_saved_comb_fwd", "_saved_comb_rev")
+                    sc_rules = self._get_advanced_lines(self.combined_self_comp_widget, "_saved_comb_sc")
+                
+                data.update({
+                    "require_palindrome": self.require_palindrome_var.get(),
+                    "palindrome_min_len": self.palindrome_min_len_var.get(),
+                    "non_overlapping": self.non_overlapping_var.get(),
+                    "nt_motifs": self._get_advanced_lines(m_w, m_key),
+                    "exclude_nt_motifs": self._get_advanced_lines(ex_w, ex_key),
+                    "base_content": self._get_advanced_lines(b_w, b_key),
+                    "repeat_limits": self._get_advanced_lines(r_w, r_key),
+                    "forward_only_motifs": self._get_advanced_lines(f_w, f_key),
+                    "reverse_only_motifs": self._get_advanced_lines(rv_w, rv_key),
+                    "self_comp": sc_rules,
+                })
+
+            if mode in ("peptide", "combined"):
+                if mode == "peptide":
+                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
+                    pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
+                else:
+                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.combined_pep_motif_widget, self.combined_exclude_pep_widget, self.combined_amino_content_widget, self.combined_peptide_repeat_widget, self.combined_pep_mismatches_var, self.combined_frame_vars)
+                    pm_key, px_key, pa_key, pr_key = ("_saved_comb_pep_motif", "_saved_comb_excl_pep", "_saved_comb_amino", "_saved_comb_pep_rep")
+
+                data.update({
+                    "pep_motifs": self._get_advanced_lines(pm_w, pm_key),
+                    "exclude_pep_motifs": self._get_advanced_lines(px_w, px_key),
+                    "amino_content": self._get_advanced_lines(pa_w, pa_key),
+                    "pep_repeats": self._get_advanced_lines(pr_w, pr_key),
+                    "frames": [f for f, v in pf_vars.items() if v.get()],
+                    "pep_mismatches": pmm_v.get(),
+                })
+
+            if mode == "combined":
+                data.update({
+                    "combined_strand": self.combined_strand_var.get(),
+                    "combined_forward_len": self.combined_comb_fwd_var.get(),
+                    "combined_reverse_len": self.combined_comb_rev_var.get(),
+                    "combined_overlap": self.combined_comb_overlap_var.get(),
+                    "nt_sub_window": self.combined_nt_sub_window_var.get(),
+                    "nt_sub_offset": self.combined_nt_sub_offset_var.get(),
+                    "pep_sub_window": self.combined_pep_sub_window_var.get(),
+                    "pep_sub_offset": self.combined_pep_sub_offset_var.get(),
+                })
+
             with open(file_path, "w", encoding="utf-8") as f:
-                import json
                 json.dump(data, f, indent=4)
             self.append_log(f"Saved {mode} search profile to {Path(file_path).name}")
         except Exception as e:
-            messagebox.showerror("Save Error", f"Failed to save profile:\n{e}")
+            error_msg = f"Failed to save {mode} profile:\n{e}\n\n{traceback.format_exc()}"
+            messagebox.showerror("Save Error", error_msg)
+            self.append_log(error_msg)
 
     def load_search_profile(self, mode: str) -> None:
-        file_path = filedialog.askopenfilename(
-            title=f"Load {mode.capitalize()} Profile",
-            filetypes=[("JSON files", "*.json")],
-        )
-        if not file_path:
-            return
-        
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                import json
-                data = json.load(f)
-        except Exception as e:
-            messagebox.showerror("Load Error", f"Failed to load profile:\n{e}")
-            return
 
-        if data.get("mode") != mode:
-            if not messagebox.askyesno(
-                "Profile Mismatch", 
-                f"This profile was saved from a '{data.get('mode')}' search. Are you sure you want to load it into the '{mode}' tab?"
-            ):
+            file_path = filedialog.askopenfilename(
+                title=f"Load {mode.capitalize()} Profile",
+                filetypes=[("JSON files", "*.json")],
+            )
+            if not file_path:
                 return
-
-        def set_var(var, key, default=""):
-            if key in data:
-                var.set(str(data[key]))
-
-        set_var(self.window_var, "window")
-        set_var(self.step_var, "step")
-        set_var(self.workers_var, "workers")
-        set_var(self.output_name_var, "output_name")
-        if "forward_strand" in data: self.forward_strand_var.set(bool(data["forward_strand"]))
-        if "reverse_strand" in data: self.reverse_strand_var.set(bool(data["reverse_strand"]))
         
-        if "sequence_filter" in data: self._set_multiline_widget(self.sequence_filter_widget, "_saved_seq_filter", data["sequence_filter"])
-        if "region_filter" in data: self._set_multiline_widget(self.region_filter_widget, "_saved_reg_filter", data["region_filter"])
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        if mode in ("nucleotide", "combined"):
-            if "require_palindrome" in data: self.require_palindrome_var.set(bool(data["require_palindrome"]))
-            if "non_overlapping" in data: self.non_overlapping_var.set(bool(data["non_overlapping"]))
-            set_var(self.palindrome_min_len_var, "palindrome_min_len")
+            if data.get("mode") != mode:
+                if not messagebox.askyesno(
+                    "Profile Mismatch", 
+                    f"This profile was saved from a '{data.get('mode')}' search. Are you sure you want to load it into the '{mode}' tab?"
+                ):
+                    return
+    
+            def set_var(var, key, default=""):
+                if key in data:
+                    var.set(str(data[key]))
+    
+            set_var(self.window_var, "window")
+            set_var(self.step_var, "step")
+            set_var(self.workers_var, "workers")
+            set_var(self.output_name_var, "output_name")
+            if "forward_strand" in data: self.forward_strand_var.set(bool(data["forward_strand"]))
+            if "reverse_strand" in data: self.reverse_strand_var.set(bool(data["reverse_strand"]))
             
-            if "nt_motifs" in data: self._set_multiline_widget(self.motif_widget, "_saved_motif_text", data["nt_motifs"])
-            if "exclude_nt_motifs" in data: self._set_multiline_widget(self.exclude_motif_widget, "_saved_exclude_text", data["exclude_nt_motifs"])
-            if "base_content" in data: self._set_multiline_widget(self.base_widget, "_saved_base_text", data["base_content"])
-            if "repeat_limits" in data: self._set_multiline_widget(self.repeat_widget, "_saved_repeat_text", data["repeat_limits"])
-            if "forward_only_motifs" in data: self._set_multiline_widget(self.forward_only_motif_widget, "_saved_forward_only_motif_text", data["forward_only_motifs"])
-            if "reverse_only_motifs" in data: self._set_multiline_widget(self.reverse_only_motif_widget, "_saved_reverse_only_motif_text", data["reverse_only_motifs"])
-            if "self_comp" in data: self._set_multiline_widget(self.sc_widget, "_saved_sc_text", data["self_comp"])
-
-        if mode in ("peptide", "combined"):
-            set_var(self.peptide_mismatches_var, "pep_mismatches")
-            if "pep_motifs" in data: self._set_multiline_widget(self.pep_motif_widget, "_saved_pep_motif", data["pep_motifs"])
-            if "exclude_pep_motifs" in data: self._set_multiline_widget(self.pep_exclude_motif_widget, "_saved_pep_exclude", data["exclude_pep_motifs"])
-            if "amino_content" in data: self._set_multiline_widget(self.pep_amino_widget, "_saved_pep_amino", data["amino_content"])
-            if "pep_repeats" in data: self._set_multiline_widget(self.pep_repeat_widget, "_saved_pep_repeat", data["pep_repeats"])
-            if "frames" in data: self._set_multiline_widget(self.pep_frame_widget, "_saved_pep_frame", data["frames"])
-
-        if mode == "combined":
-            if "combined_strand" in data: self.combined_strand_var.set(bool(data["combined_strand"]))
-            set_var(self.combined_forward_var, "combined_forward_len")
-            set_var(self.combined_reverse_var, "combined_reverse_len")
-            set_var(self.combined_overlap_var, "combined_overlap")
-            set_var(self.combined_nt_sub_window_var, "nt_sub_window")
-            set_var(self.combined_nt_sub_offset_var, "nt_sub_offset")
-            set_var(self.combined_pep_sub_window_var, "pep_sub_window")
-            set_var(self.combined_pep_sub_offset_var, "pep_sub_offset")
+            if "sequence_filter" in data: self._set_multiline_widget(self.sequence_filter_widget, "_saved_seq_filter", data["sequence_filter"])
+            if "region_filter" in data: self._set_multiline_widget(self.region_filter_widget, "_saved_reg_filter", data["region_filter"])
+    
+            if mode in ("nucleotide", "combined"):
+                if mode == "nucleotide":
+                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
+                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
+                else:
+                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.combined_nt_motif_widget, self.combined_exclude_nt_widget, self.combined_base_widget, self.combined_repeat_widget, self.combined_forward_motif_widget, self.combined_reverse_motif_widget)
+                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_comb_nt_motif", "_saved_comb_excl_nt", "_saved_comb_base", "_saved_comb_rep", "_saved_comb_fwd", "_saved_comb_rev")
+    
+                if "require_palindrome" in data: self.require_palindrome_var.set(bool(data["require_palindrome"]))
+                if "non_overlapping" in data: self.non_overlapping_var.set(bool(data["non_overlapping"]))
+                set_var(self.palindrome_min_len_var, "palindrome_min_len")
+                
+                if "nt_motifs" in data: self._set_multiline_widget(m_w, m_key, data["nt_motifs"])
+                if "exclude_nt_motifs" in data: self._set_multiline_widget(ex_w, ex_key, data["exclude_nt_motifs"])
+                if "base_content" in data: self._set_multiline_widget(b_w, b_key, data["base_content"])
+                if "repeat_limits" in data: self._set_multiline_widget(r_w, r_key, data["repeat_limits"])
+                if "forward_only_motifs" in data: self._set_multiline_widget(f_w, f_key, data["forward_only_motifs"])
+                if "reverse_only_motifs" in data: self._set_multiline_widget(rv_w, rv_key, data["reverse_only_motifs"])
+                
+                if "self_comp" in data:
+                    if mode == "nucleotide":
+                        self._self_comp_rules = []
+                        for spec in data["self_comp"]:
+                            rule = self._sc_cli_spec_to_rule(spec)
+                            if rule: self._self_comp_rules.append(rule)
+                        if self._sc_rules_listbox:
+                            self._sc_rules_listbox.delete(0, END)
+                            for r in self._self_comp_rules:
+                                self._sc_rules_listbox.insert(END, self._sc_rule_label(r))
+                    else:
+                        self._set_multiline_widget(self.combined_self_comp_widget, "_saved_comb_sc", data["self_comp"])
+    
+            if mode in ("peptide", "combined"):
+                if mode == "peptide":
+                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
+                    pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
+                else:
+                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.combined_pep_motif_widget, self.combined_exclude_pep_widget, self.combined_amino_content_widget, self.combined_peptide_repeat_widget, self.combined_pep_mismatches_var, self.combined_frame_vars)
+                    pm_key, px_key, pa_key, pr_key = ("_saved_comb_pep_motif", "_saved_comb_excl_pep", "_saved_comb_amino", "_saved_comb_pep_rep")
+    
+                set_var(pmm_v, "pep_mismatches")
+                if "pep_motifs" in data: self._set_multiline_widget(pm_w, pm_key, data["pep_motifs"])
+                if "exclude_pep_motifs" in data: self._set_multiline_widget(px_w, px_key, data["exclude_pep_motifs"])
+                if "amino_content" in data: self._set_multiline_widget(pa_w, pa_key, data["amino_content"])
+                if "pep_repeats" in data: self._set_multiline_widget(pr_w, pr_key, data["pep_repeats"])
+                
+                if "frames" in data:
+                    frames_list = data["frames"]
+                    for fid, fv in pf_vars.items():
+                        fv.set(fid in frames_list)
+    
+            if mode == "combined":
+                if "combined_strand" in data: self.combined_strand_var.set(bool(data["combined_strand"]))
+                set_var(self.combined_comb_fwd_var, "combined_forward_len")
+                set_var(self.combined_comb_rev_var, "combined_reverse_len")
+                set_var(self.combined_comb_overlap_var, "combined_overlap")
+                set_var(self.combined_nt_sub_window_var, "nt_sub_window")
+                set_var(self.combined_nt_sub_offset_var, "nt_sub_offset")
+                set_var(self.combined_pep_sub_window_var, "pep_sub_window")
+                set_var(self.combined_pep_sub_offset_var, "pep_sub_offset")
             
-        self.append_log(f"Loaded {mode} search profile from {Path(file_path).name}")
+            self.append_log(f"Loaded {mode} search profile from {Path(file_path).name}")
+        except Exception as e:
+            import traceback
+            error_msg = f"Failed to load {mode} profile:\n{e}\n\n{traceback.format_exc()}"
+            messagebox.showerror("Load Error", error_msg)
+            self.append_log(error_msg)
 
     def run_scan(self) -> None:
         fasta_path = self.fasta_var.get().strip()
@@ -4341,18 +4825,6 @@ class ScannerGUI:
         except Exception:
             self._status_reset_job = None
 
-    @staticmethod
-    def _read_lines(widget) -> list[str]:
-        if widget is None:
-            return []
-        value = widget.get("1.0", END)
-        result = []
-        for line in value.splitlines():
-            line = line.strip()
-            if line:
-                result.append(line)
-        return result
-
     def _read_text_lines(self, widget) -> list[str]:
         if widget is None:
             return []
@@ -4504,6 +4976,8 @@ class ScannerGUI:
         self._write_profile_store()
         self.chemistry_profiles = self._load_chemistry_profiles()
         self._refresh_profile_options()
+        messagebox.showinfo("Success", f"Chemistry profile '{name}' saved to chemistry_profiles.json")
+        self.append_log(f"Saved chemistry profile '{name}'")
 
     def _delete_selected_profile(self) -> None:
         display = self.chemistry_profile_var.get()
@@ -4733,16 +5207,10 @@ class ScannerGUI:
         try:
             cfg = configparser.ConfigParser()
             cfg["paths"] = {}
-            _NON_PATH_KEYS = {
-                "output_name", "selected_genome", "triplex_input_mode",
-                "vector_annotation_column", "vector_label_mode",
-                "vector_seq_ids", "vector_region_filters", "vector_gene_filters",
-                "palindrome_min_len", "top_oligos",
-            }
             for key, var in self._persisted_string_vars.items():
                 value = var.get().strip()
                 if value:
-                    if key not in _NON_PATH_KEYS:
+                    if key not in self.NON_PATH_KEYS:
                         # Convert to relative path if inside ROOT_DIR
                         try:
                             p = Path(value)
@@ -4780,13 +5248,7 @@ class ScannerGUI:
                     continue
                 # Drop paths that no longer exist on disk OR that point outside
                 # our toolkit root (e.g. a stale path from an old installation).
-                NON_PATH_KEYS = {
-                    "output_name", "selected_genome", "triplex_input_mode",
-                    "vector_annotation_column", "vector_label_mode",
-                    "vector_seq_ids", "vector_region_filters", "vector_gene_filters",
-                    "palindrome_min_len", "top_oligos",
-                }
-                if value and key not in NON_PATH_KEYS:
+                if value and key not in self.NON_PATH_KEYS:
                     p = Path(value)
                     if not p.is_absolute():
                         p = ROOT_DIR / p
@@ -4809,6 +5271,11 @@ class ScannerGUI:
         finally:
             self._loading_settings = False
 
+
+    def _get_sequence_classes(self) -> list[str]:
+        """Return selected sequence classes (e.g. chromosome, scaffold). Currently defaults to empty."""
+        # TODO: Implement sequence class checkboxes in the UI
+        return []
 
 def main() -> None:
     root = Tk()

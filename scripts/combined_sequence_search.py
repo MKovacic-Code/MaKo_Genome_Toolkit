@@ -26,9 +26,11 @@ try:
         sequence_matches_chromosome_filter,
         normalize_seq_name,
         iter_nc_sequences,
+        prefixes_for_classes,
         format_seq_id,
         scan_sequence,
         scan_combined_windows,
+        reverse_complement,
         MotifConstraint,
         ExcludeMotifConstraint,
         MotifSelfCompConstraint,
@@ -141,8 +143,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=False, # We filter non-overlapping at the end of combined search
-            candidate_positions=None,
+            non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
         )
@@ -165,8 +166,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=False, # We filter non-overlapping at the end of combined search
-            candidate_positions=None,
+            non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
         )
@@ -185,8 +185,7 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
             region_filters=config["region_filters"],
-            non_overlapping=False, # We filter non-overlapping at the end of combined search
-            candidate_positions=None,
+            non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
             self_comp_constraints=config["self_comp_constraints"]
         )
@@ -209,25 +208,26 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
         # scan_sequence returns window_start relative to the sequence provided.
         # If it's reverse strand, it was RC'd.
         
-        nt_start_in_scan = hit["window_start"]
-        seq_len = len(sequence)
-        
-        # For combined strand, the hit already uses genome coords directly
-        if strand == "combined":
-            scanned_seq = sequence
-        elif strand == "-":
-            scanned_seq = reverse_complement(sequence)
+        # Determine the overall window in genome coordinates (1-based)
+        if strand == "-":
+            # For reverse strand, the NT sub-offset is relative to the start of the RC window.
+            # This corresponds to the END of the genome window.
+            g_overall_end = hit["window_end"] + nt_sub_offset
+            g_overall_start = g_overall_end - overall_window + 1
+            is_reverse_nt = True
         else:
-            scanned_seq = sequence
-        
-        # Candidate overall window start relative to the scanned sequence (RC'd if strand is -)
-        can_overall_start = nt_start_in_scan - nt_sub_offset
-        can_overall_end = can_overall_start + overall_window - 1
-        
-        if can_overall_start < 1 or can_overall_end > len(scanned_seq):
+            g_overall_start = hit["window_start"] - nt_sub_offset
+            g_overall_end = g_overall_start + overall_window - 1
+            is_reverse_nt = False
+            
+        if g_overall_start < 1 or g_overall_end > len(sequence):
             continue
             
-        overall_subseq = scanned_seq[can_overall_start - 1 : can_overall_end]
+        # Extract and prepare the overall sequence for peptide scanning
+        overall_subseq = sequence[g_overall_start - 1 : g_overall_end]
+        if is_reverse_nt:
+            overall_subseq = reverse_complement(overall_subseq)
+            
         pep_subseq_local = overall_subseq[pep_sub_offset : pep_sub_offset + pep_sub_window]
         
         for f_strand, f_offset in frames:
@@ -275,16 +275,9 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             eff = calc_codon_efficiency(subseq)
             
             # Map overall window back to genome coords
-            if strand == "+":
-                overall_start_gen = can_overall_start
-                overall_end_gen = can_overall_end
-            elif strand == "combined":
-                # Combined strand already in genome coords
-                overall_start_gen = can_overall_start
-                overall_end_gen = can_overall_end
-            else:
-                overall_start_gen = seq_len - can_overall_end + 1
-                overall_end_gen = seq_len - can_overall_start + 1
+            # The g_overall_start/end variables are already in genome coordinates
+            overall_start_gen = g_overall_start
+            overall_end_gen = g_overall_end
                 
             comb_hit = hit.copy()
             comb_hit["window_start"] = overall_start_gen
@@ -386,18 +379,26 @@ def main():
     out_path = out_dir / f"{args.output_prefix}.tsv"
     
     all_hits = []
-    
-    with open(args.fasta, "r") as f:
-        lines = f.readlines()
-        
+
+    fasta_path = Path(args.fasta)
+    if not fasta_path.is_file():
+        print(f"FASTA file '{args.fasta}' does not exist.", file=sys.stderr)
+        return 1
+
+    classes = tuple(args.sequence_classes) if args.sequence_classes else None
+    record_prefixes = prefixes_for_classes(classes)
+    allowed_ids = {normalize_seq_name(s) for s in args.sequence_id if s} if args.sequence_id else None
+
     sequences = []
-    allowed_ids = set(args.sequence_id) if args.sequence_id else None
-    
-    for seq_id, seq in iter_nc_sequences(lines, args.sequence_classes, allowed_ids):
+    for seq_id, seq in iter_nc_sequences(fasta_path, record_prefixes):
         norm_id = normalize_seq_name(seq_id)
+        if allowed_ids and norm_id not in allowed_ids:
+            continue
+        if region_filters and args.region and norm_id not in region_filters:
+            continue
         if chromosome_filter and not sequence_matches_chromosome_filter(norm_id, chromosome_filter):
             continue
-        sequences.append((format_seq_id(seq_id), seq))
+        sequences.append((seq_id, seq))
         
     if worker_count == 1:
         _init_worker(config)
@@ -473,6 +474,26 @@ def main():
             writer.writerow(row)
             
     print(f"Done. Wrote {len(all_hits)} hits to {out_path}")
+    
+    # Report total motif counts
+    nt_motif_counts = {}
+    pep_motif_counts = {}
+    for hit in all_hits:
+        for m_label, m_count in hit.get("motif_hits", []):
+            nt_motif_counts[m_label] = nt_motif_counts.get(m_label, 0) + m_count
+        for m_label, m_mm in hit.get("matched_pep_motifs", []):
+            pep_motif_counts[m_label] = pep_motif_counts.get(m_label, 0) + 1 # Each hit matches once per motif record
+            
+    if nt_motif_counts:
+        print("\nTotal NT motif occurrences found in matching windows:")
+        for label, count in sorted(nt_motif_counts.items()):
+            print(f"  {label}: {count}")
+            
+    if pep_motif_counts:
+        print("\nTotal Peptide motif occurrences found in matching windows:")
+        for label, count in sorted(pep_motif_counts.items()):
+            print(f"  {label}: {count}")
+
     return 0
 
 if __name__ == "__main__":
