@@ -335,10 +335,17 @@ def _process_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, list[dict[s
         step=_WORKER_CONFIG["step"],
         motif_patterns=_WORKER_CONFIG["motif_patterns"],
         exclude_patterns=_WORKER_CONFIG["exclude_patterns"],
+        content_limits=_WORKER_CONFIG["content_limits"],
+        repeat_limits=_WORKER_CONFIG["repeat_limits"],
         max_mismatches=_WORKER_CONFIG["max_mismatches"],
         allow_overlap=_WORKER_CONFIG["allow_overlap"],
+        strand_modes=_WORKER_CONFIG.get("strand_modes", []),
+        combined_forward_len=_WORKER_CONFIG.get("combined_forward_len", 0),
+        combined_reverse_len=_WORKER_CONFIG.get("combined_reverse_len", 0),
+        combined_overlap=_WORKER_CONFIG.get("combined_overlap", 0),
     )
     return seq_id, hits
+
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
