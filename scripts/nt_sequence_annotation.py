@@ -5,14 +5,87 @@ from __future__ import annotations
 
 import argparse
 import csv
-from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
-
+import hashlib
+import os
+import pickle
+import re
+from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_DATA_DIR_NAME = "data_human_homo_sapiens"
+
+
+# ---------------------------------------------------------------------------
+# Parsed-index cache
+#
+# Parsing the genome annotation files (GFF3/GTF up to a few GB, GBFF >4 GB) is
+# by far the slowest part of annotation. The parsed result for a given file is
+# fully determined by the file's bytes, so we memoise it to disk: the first run
+# parses and writes a pickle alongside the source (in a .annotation_cache/
+# folder), and later runs load that pickle whenever the source is unchanged.
+# The cache key embeds the file size, mtime and a format version, so replacing
+# or editing a source file -- or upgrading the parser -- invalidates the cache
+# automatically.
+#
+# Caching is strictly best-effort: any read/write/validation failure falls back
+# to a normal parse, so a missing, corrupt or stale cache can never yield a
+# wrong or partial annotation. Set MAKO_NO_ANNOTATION_CACHE=1 to disable it.
+# ---------------------------------------------------------------------------
+
+CACHE_DIRNAME = ".annotation_cache"
+# Bump when the parsed data structure changes (e.g. new GFFIndex fields) so old
+# pickles are rejected instead of silently loaded.
+CACHE_FORMAT_VERSION = 1
+
+
+def _cache_disabled() -> bool:
+    return bool(os.environ.get("MAKO_NO_ANNOTATION_CACHE"))
+
+
+def _cache_key(path: Path, tag: str) -> tuple:
+    stat = path.stat()
+    return (tag, CACHE_FORMAT_VERSION, stat.st_size, stat.st_mtime_ns)
+
+
+def _cache_path_for(path: Path, tag: str) -> Path:
+    digest = hashlib.sha1(str(path.resolve()).encode("utf-8")).hexdigest()[:16]
+    return path.parent / CACHE_DIRNAME / f"{path.name}.{tag}.{digest}.pkl"
+
+
+def _cached_parse(path: Path, tag: str, parser: Callable[[Path], object]) -> object:
+    """Return ``parser(path)``, transparently memoised to disk by file fingerprint."""
+    if _cache_disabled():
+        return parser(path)
+    cache_file = _cache_path_for(path, tag)
+    try:
+        if cache_file.is_file():
+            with cache_file.open("rb") as handle:
+                payload = pickle.load(handle)
+            if isinstance(payload, dict) and payload.get("key") == _cache_key(path, tag):
+                print(f"[annotation-cache] reusing parsed {tag} for {path.name}")
+                return payload["data"]
+    except Exception:
+        pass  # corrupt/unreadable cache -> fall through to a fresh parse
+    data = parser(path)
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_name(cache_file.name + ".tmp")
+        with tmp.open("wb") as handle:
+            pickle.dump(
+                {"key": _cache_key(path, tag), "data": data},
+                handle,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        tmp.replace(cache_file)  # atomic: a partial write never becomes the cache
+        print(f"[annotation-cache] cached {tag} index for {path.name}")
+    except Exception:
+        # Read-only data dir / disk full / pickling issue: keep going uncached.
+        pass
+    return data
 
 
 @dataclass
@@ -45,6 +118,24 @@ class GFF3Feature:
 class GFFIndex:
     features: List[GFF3Feature]
     starts: List[int]
+    # Prefix maximum of feature end coordinates (aligned with `features`/`starts`).
+    # max_ends[i] == max(features[0..i].end). Used by _gff_overlaps to find
+    # features that begin before a query window but extend into it, without
+    # stopping early at the first non-overlapping feature.
+    max_ends: List[int]
+
+
+def _finalize_index(features: List[GFF3Feature]) -> GFFIndex:
+    """Sort features by start and precompute the start/prefix-max-end arrays."""
+    features.sort(key=lambda feat: feat.start)
+    starts = [feat.start for feat in features]
+    max_ends: List[int] = []
+    running = 0
+    for feat in features:
+        if feat.end > running:
+            running = feat.end
+        max_ends.append(running)
+    return GFFIndex(features=features, starts=starts, max_ends=max_ends)
 
 
 @dataclass
@@ -106,22 +197,30 @@ def parse_gff3_attributes(raw: str) -> Dict[str, str]:
     return attrs
 
 
-def parse_gff3(path: Path) -> Dict[str, GFFIndex]:
-    include_types = {
-        "gene",
-        "mrna",
-        "transcript",
-        "exon",
-        "cds",
-        "intron",
-        "five_prime_utr",
-        "three_prime_utr",
-        "lnc_rna",
-        "mirna",
-        "pseudogene",
-    }
-    from collections import defaultdict
+INCLUDE_FEATURE_TYPES = {
+    "gene",
+    "mrna",
+    "transcript",
+    "exon",
+    "cds",
+    "intron",
+    "five_prime_utr",
+    "three_prime_utr",
+    "lnc_rna",
+    "mirna",
+    "pseudogene",
+}
 
+
+def _parse_tabular_annotation(
+    path: Path, attribute_parser: Callable[[str], Dict[str, str]]
+) -> Dict[str, GFFIndex]:
+    """Parse a 9-column GFF3/GTF file into per-sequence interval indexes.
+
+    GFF3 and GTF share the same column layout and differ only in how the 9th
+    (attributes) column is encoded, so a single reader handles both via a
+    pluggable attribute parser.
+    """
     per_seq: Dict[str, List[GFF3Feature]] = defaultdict(list)
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -132,29 +231,29 @@ def parse_gff3(path: Path) -> Dict[str, GFFIndex]:
                 continue
             seq_id, _source, feature_type, start, end, *_rest, attributes = parts
             kind = feature_type.lower()
-            if kind not in include_types:
+            if kind not in INCLUDE_FEATURE_TYPES:
                 continue
             try:
                 start_i = int(start)
                 end_i = int(end)
             except ValueError:
                 continue
-            attr_map = parse_gff3_attributes(attributes)
             per_seq[seq_id].append(
                 GFF3Feature(
                     seq_id=seq_id,
                     start=start_i,
                     end=end_i,
                     feature_type=kind,
-                    attributes=attr_map,
+                    attributes=attribute_parser(attributes),
                 )
             )
-    indexed: Dict[str, GFFIndex] = {}
-    for seq_id, features in per_seq.items():
-        features.sort(key=lambda feat: feat.start)
-        starts = [feat.start for feat in features]
-        indexed[seq_id] = GFFIndex(features=features, starts=starts)
-    return indexed
+    return {seq_id: _finalize_index(features) for seq_id, features in per_seq.items()}
+
+
+def parse_gff3(path: Path) -> Dict[str, GFFIndex]:
+    return _cached_parse(
+        path, "gff3", lambda p: _parse_tabular_annotation(p, parse_gff3_attributes)
+    )
 
 
 def parse_gtf_attributes(raw: str) -> Dict[str, str]:
@@ -170,54 +269,9 @@ def parse_gtf_attributes(raw: str) -> Dict[str, str]:
 
 
 def parse_gtf(path: Path) -> Dict[str, GFFIndex]:
-    include_types = {
-        "gene",
-        "mrna",
-        "transcript",
-        "exon",
-        "cds",
-        "intron",
-        "five_prime_utr",
-        "three_prime_utr",
-        "lnc_rna",
-        "mirna",
-        "pseudogene",
-    }
-    from collections import defaultdict
-
-    per_seq: Dict[str, List[GFF3Feature]] = defaultdict(list)
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if not line or line.startswith("#"):
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) != 9:
-                continue
-            seq_id, _source, feature_type, start, end, *_rest, attributes = parts
-            kind = feature_type.lower()
-            if kind not in include_types:
-                continue
-            try:
-                start_i = int(start)
-                end_i = int(end)
-            except ValueError:
-                continue
-            attr_map = parse_gtf_attributes(attributes)
-            per_seq[seq_id].append(
-                GFF3Feature(
-                    seq_id=seq_id,
-                    start=start_i,
-                    end=end_i,
-                    feature_type=kind,
-                    attributes=attr_map,
-                )
-            )
-    indexed: Dict[str, GFFIndex] = {}
-    for seq_id, features in per_seq.items():
-        features.sort(key=lambda feat: feat.start)
-        starts = [feat.start for feat in features]
-        indexed[seq_id] = GFFIndex(features=features, starts=starts)
-    return indexed
+    return _cached_parse(
+        path, "gtf", lambda p: _parse_tabular_annotation(p, parse_gtf_attributes)
+    )
 
 
 def merge_gff_indexes(target: Dict[str, GFFIndex], additions: Dict[str, GFFIndex]) -> None:
@@ -227,8 +281,7 @@ def merge_gff_indexes(target: Dict[str, GFFIndex], additions: Dict[str, GFFIndex
             target[seq_id] = idx
         else:
             existing.features.extend(idx.features)
-            existing.features.sort(key=lambda feat: feat.start)
-            existing.starts = [feat.start for feat in existing.features]
+            target[seq_id] = _finalize_index(existing.features)
 
 
 def parse_location(location: str) -> Tuple[int, int]:
@@ -241,6 +294,10 @@ def parse_location(location: str) -> Tuple[int, int]:
 
 
 def parse_gbff(path: Path) -> Dict[str, List[GeneFeature]]:
+    return _cached_parse(path, "gbff", _parse_gbff_impl)
+
+
+def _parse_gbff_impl(path: Path) -> Dict[str, List[GeneFeature]]:
     annotations: Dict[str, List[GeneFeature]] = {}
     current_seq: str | None = None
     current_feature: GeneFeature | None = None
@@ -296,6 +353,10 @@ def parse_gbff(path: Path) -> Dict[str, List[GeneFeature]]:
 
 
 def parse_gpff(path: Path) -> Dict[str, ProteinRecord]:
+    return _cached_parse(path, "gpff", _parse_gpff_impl)
+
+
+def _parse_gpff_impl(path: Path) -> Dict[str, ProteinRecord]:
     proteins: Dict[str, ProteinRecord] = {}
     current_acc: str | None = None
     current_version: str | None = None
@@ -381,15 +442,25 @@ def _gff_overlaps(index: GFFIndex | None, start: int, end: int) -> List[GFF3Feat
     overlaps: List[GFF3Feature] = []
     starts = index.starts
     features = index.features
+    max_ends = index.max_ends
     idx = bisect_left(starts, start)
+    # Features beginning before the query window that may still extend into it.
+    # Features are sorted by start, so their *ends* are not monotonic; a small
+    # upstream feature (e.g. an exon) ending before `start` must NOT terminate
+    # the scan, because an even-earlier feature (e.g. the enclosing gene) can
+    # still span the window. The prefix-max-end array lets us stop only once no
+    # earlier feature can possibly reach `start`.
     i = idx - 1
-    while i >= 0 and features[i].end >= start:
-        overlaps.append(features[i])
+    while i >= 0 and max_ends[i] >= start:
+        if features[i].end >= start:
+            overlaps.append(features[i])
         i -= 1
+    # Features beginning inside [start, end] always overlap (their start >= start
+    # and start <= end, so their end >= start as well).
     j = idx
-    while j < len(features) and features[j].start <= end:
-        if features[j].end >= start:
-            overlaps.append(features[j])
+    n = len(features)
+    while j < n and features[j].start <= end:
+        overlaps.append(features[j])
         j += 1
     return overlaps
 
@@ -437,7 +508,18 @@ def summarize_gff_annotations(
         }.get(feature.feature_type)
         if label:
             region_types.add(label)
-        gene_val = attrs.get("gene") or attrs.get("gene_name") or attrs.get("Name")
+        # Gene symbol is carried under different attribute keys depending on the
+        # source: RefSeq GFF3 uses `gene`/`Name`, Ensembl/RefSeq GTF use
+        # `gene_name`/`gene_id`, and some records only expose `locus_tag`. Try
+        # them in descending order of readability so we surface a real symbol
+        # whenever one exists instead of dropping the hit to NA.
+        gene_val = (
+            attrs.get("gene")
+            or attrs.get("gene_name")
+            or attrs.get("Name")
+            or attrs.get("gene_id")
+            or attrs.get("locus_tag")
+        )
         if gene_val:
             gene_names.add(gene_val)
         if feature.feature_type in {"mrna", "transcript"}:

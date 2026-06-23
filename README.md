@@ -9,6 +9,7 @@ MaKo Genome Toolkit is a powerful, high-performance suite for searching and anal
 - **Combined Search**: Synchronized scanning that filters regions satisfying both DNA and Protein constraints.
 - **Bi-directional Sync**: Real-time synchronization of search parameters across different analytical tabs.
 - **Visualization**: Integrated chromosome and dataset visualization tools.
+- **RNA & GPU support**: Scan RNA genomes (U≡T) and optionally accelerate scanning on a CUDA GPU with bit-identical results and automatic CPU fallback. See [docs/GPU.md](docs/GPU.md) for GPU acceleration, crash-safe streaming/resume, validation, and benchmarking.
 
 ## Installation
 

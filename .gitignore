@@ -18,9 +18,20 @@ data_*/
 # Output folders
 output_*/
 
+# Parsed annotation index cache (regenerated on demand from source GFF/GBFF/GPFF)
+.annotation_cache/
+
 # GUI Settings
 gui_settings.ini
 
 # OS generated files
 .DS_Store
 desktop.ini
+
+# IDE and tool configuration
+.claude/
+
+# Python packaging & build artifacts
+build/
+dist/
+*.egg-info/
