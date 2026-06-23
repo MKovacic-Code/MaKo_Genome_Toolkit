@@ -219,32 +219,89 @@ def base_composition(sequence: str) -> Tuple[Counter, float]:
     return counts, gc_pct
 
 
-def g4hunter_score(sequence: str, window: int) -> float:
-    if not sequence:
-        return 0.0
+def _g4hunter_base_scores(sequence: str) -> List[int]:
+    """Per-base G4Hunter scores (Bedrat, Lacroix & Mergny, NAR 2016).
+
+    Every base in a run of *n* consecutive G's scores ``+min(n, 4)``; every base
+    in a run of *n* consecutive C's scores ``-min(n, 4)``; A/T and any other
+    character score 0. Run length is evaluated in the context of the whole
+    sequence, which is what makes the score sensitive to G-tract structure
+    rather than mere G content.
+    """
+    seq = sequence.upper()
+    n = len(seq)
+    scores = [0] * n
+    i = 0
+    while i < n:
+        base = seq[i]
+        if base == "G" or base == "C":
+            j = i
+            while j < n and seq[j] == base:
+                j += 1
+            run = j - i
+            val = run if run < 4 else 4
+            if base == "C":
+                val = -val
+            for k in range(i, j):
+                scores[k] = val
+            i = j
+        else:
+            i += 1
+    return scores
+
+
+def g4hunter_score(sequence: str, window: int = 0) -> float:
+    """Canonical G4Hunter score: the signed mean of per-base run-length scores.
+
+    With ``window`` <= 0 or >= len(sequence) the whole-sequence mean is returned
+    (the G4Hunter score of ``sequence``). With a smaller positive ``window`` the
+    sliding-window mean of largest magnitude is returned (sign preserved),
+    matching the convention used when locating the most G4/i-motif-prone
+    sub-region. Positive values indicate G4 (G-rich) propensity, negative values
+    indicate i-motif (C-rich) propensity; |score| ~>= 1.0-1.5 is the usual G4
+    calling threshold. Range is roughly -4 .. +4.
+    """
     if cy_g4hunter_score is not None:
         return cy_g4hunter_score(sequence, window)
-    score = 0.0
     seq_len = len(sequence)
-    for i in range(seq_len - window + 1):
-        window_seq = sequence[i : i + window]
-        window_score = sum(
-            1 if base in {"G"} else -1 if base in {"C"} else 0 for base in window_seq
-        )
-        score += abs(window_score) / window
-    return score / max(seq_len - window + 1, 1)
+    if seq_len == 0:
+        return 0.0
+    scores = _g4hunter_base_scores(sequence)
+    if window <= 0 or window >= seq_len:
+        return sum(scores) / seq_len
+    window_sum = sum(scores[:window])
+    best = window_sum / window
+    for i in range(window, seq_len):
+        window_sum += scores[i] - scores[i - window]
+        mean_val = window_sum / window
+        if abs(mean_val) > abs(best):
+            best = mean_val
+    return best
 
 
 def g4boost_score(sequence: str) -> float:
+    """Composite G4-propensity heuristic in [0, 1] (higher = more G4-prone).
+
+    NOTE: this is a custom weighted heuristic, not the published G4Boost ML
+    model. The pure-Python path mirrors the Cython implementation exactly so
+    both return identical values regardless of whether the extension is loaded.
+    """
     if cy_g4boost_score is not None:
         return cy_g4boost_score(sequence)
-    score = 0.0
-    for base in sequence:
-        if base == "G":
-            score += 1.0
-        elif base == "C":
-            score += 0.5
-    return score
+    seq = sequence.upper()
+    length = len(seq)
+    if length == 0:
+        return 0.0
+    g_count = seq.count("G")
+    c_count = seq.count("C")
+    a_count = seq.count("A")
+    g_pct = g_count / length
+    c_pct = c_count / length
+    purine_pct = (g_count + a_count) / length
+    run_ratio = longest_run(seq, "G") / length
+    balance = 1.0 - abs(g_pct - c_pct)
+    score = 0.55 * g_pct + 0.25 * run_ratio + 0.1 * purine_pct + 0.1 * balance
+    return min(1.0, max(0.0, score))
 
 
 def calc_codon_efficiency(sequence: str) -> float:

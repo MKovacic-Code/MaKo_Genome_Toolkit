@@ -6,7 +6,7 @@
         "depends": [],
         "name": "cython_helpers",
         "sources": [
-            "D:\\bioinformatics\\genome_toolkit\\scripts\\cython_helpers.pyx"
+            "D:\\bioinformatics\\genome_toolkit_v2\\scripts\\cython_helpers.pyx"
         ]
     },
     "module_name": "cython_helpers"
@@ -1886,6 +1886,9 @@ static CYTHON_INLINE void __Pyx__ExceptionReset(PyThreadState *tstate, PyObject 
 #define __Pyx_ExceptionReset(type, value, tb)  PyErr_SetExcInfo(type, value, tb)
 #endif
 
+/* DivInt[Py_ssize_t].proto */
+static CYTHON_INLINE Py_ssize_t __Pyx_div_Py_ssize_t(Py_ssize_t, Py_ssize_t, int b_is_constant);
+
 /* dict_setdefault.proto (used by FetchCommonType) */
 static CYTHON_INLINE PyObject *__Pyx_PyDict_SetDefault(PyObject *d, PyObject *key, PyObject *default_value);
 
@@ -2251,6 +2254,7 @@ static int __Pyx_State_RemoveModule(void*);
 /* Module declarations from "libc.stdlib" */
 
 /* Module declarations from "cython_helpers" */
+static unsigned char __pyx_v_14cython_helpers_COMPLEMENT_TABLE[256];
 static CYTHON_INLINE unsigned char __pyx_f_14cython_helpers_to_upper(unsigned char); /*proto*/
 static CYTHON_INLINE unsigned int __pyx_f_14cython_helpers_mask_from_code(unsigned char); /*proto*/
 static CYTHON_INLINE unsigned int __pyx_f_14cython_helpers_mask_from_base(unsigned char); /*proto*/
@@ -2260,6 +2264,11 @@ static int __pyx_f_14cython_helpers_count_iupac_motif(PyObject *, PyObject *, in
 static PyObject *__pyx_f_14cython_helpers_base_counts(PyObject *, int __pyx_skip_dispatch); /*proto*/
 static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *, int, int __pyx_skip_dispatch); /*proto*/
 static double __pyx_f_14cython_helpers_g4boost_score(PyObject *, int __pyx_skip_dispatch); /*proto*/
+static void __pyx_f_14cython_helpers_init_table(void); /*proto*/
+static CYTHON_INLINE int __pyx_f_14cython_helpers_min_int(int, int); /*proto*/
+static CYTHON_INLINE int __pyx_f_14cython_helpers_max_int(int, int); /*proto*/
+static PyObject *__pyx_f_14cython_helpers_find_longest_intrastrand_complement_cython(PyObject *, int, PyObject *, int, int, PyObject *, int __pyx_skip_dispatch); /*proto*/
+static PyObject *__pyx_f_14cython_helpers_find_longest_interstrand_complement_cython(PyObject *, int, PyObject *, int, int, PyObject *, int __pyx_skip_dispatch); /*proto*/
 /* #### Code section: typeinfo ### */
 /* #### Code section: before_global_var ### */
 #define __Pyx_MODULE_NAME "cython_helpers"
@@ -2276,6 +2285,8 @@ static PyObject *__pyx_pf_14cython_helpers_2count_iupac_motif(CYTHON_UNUSED PyOb
 static PyObject *__pyx_pf_14cython_helpers_4base_counts(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence); /* proto */
 static PyObject *__pyx_pf_14cython_helpers_6g4hunter_score(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence, int __pyx_v_window); /* proto */
 static PyObject *__pyx_pf_14cython_helpers_8g4boost_score(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence); /* proto */
+static PyObject *__pyx_pf_14cython_helpers_10find_longest_intrastrand_complement_cython(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj); /* proto */
+static PyObject *__pyx_pf_14cython_helpers_12find_longest_interstrand_complement_cython(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj); /* proto */
 /* #### Code section: late_includes ### */
 /* #### Code section: module_state ### */
 /* SmallCodeConfig */
@@ -2299,8 +2310,8 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_items;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_values;
-  PyObject *__pyx_codeobj_tab[5];
-  PyObject *__pyx_string_tab[37];
+  PyObject *__pyx_codeobj_tab[7];
+  PyObject *__pyx_string_tab[46];
 /* #### Code section: module_state_contents ### */
 /* CommonTypesMetaclass.module_state_decls */
 PyTypeObject *__pyx_CommonTypesMetaclassType;
@@ -2349,35 +2360,44 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u_add_note __pyx_string_tab[5]
 #define __pyx_kp_u_scripts_cython_helpers_pyx __pyx_string_tab[6]
 #define __pyx_n_u_Pyx_PyDict_NextRef __pyx_string_tab[7]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[8]
-#define __pyx_n_u_base __pyx_string_tab[9]
-#define __pyx_n_u_base_counts __pyx_string_tab[10]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[11]
-#define __pyx_n_u_count_iupac_motif __pyx_string_tab[12]
-#define __pyx_n_u_cython_helpers __pyx_string_tab[13]
-#define __pyx_n_u_func __pyx_string_tab[14]
-#define __pyx_n_u_g4boost_score __pyx_string_tab[15]
-#define __pyx_n_u_g4hunter_score __pyx_string_tab[16]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[17]
-#define __pyx_n_u_items __pyx_string_tab[18]
-#define __pyx_n_u_longest_run __pyx_string_tab[19]
-#define __pyx_n_u_main __pyx_string_tab[20]
-#define __pyx_n_u_module __pyx_string_tab[21]
-#define __pyx_n_u_motif __pyx_string_tab[22]
-#define __pyx_n_u_name __pyx_string_tab[23]
-#define __pyx_n_u_pop __pyx_string_tab[24]
-#define __pyx_n_u_qualname __pyx_string_tab[25]
-#define __pyx_n_u_sequence __pyx_string_tab[26]
-#define __pyx_n_u_set_name __pyx_string_tab[27]
-#define __pyx_n_u_setdefault __pyx_string_tab[28]
-#define __pyx_n_u_test __pyx_string_tab[29]
-#define __pyx_n_u_values __pyx_string_tab[30]
-#define __pyx_n_u_window __pyx_string_tab[31]
-#define __pyx_kp_b_iso88591_1_7q_1_9_y_5_c_j_z_Bc_2Q_q__F_R __pyx_string_tab[32]
-#define __pyx_kp_b_iso88591_1_7q_1_y_1_j_xs_q_wc_3gRq_xr_q __pyx_string_tab[33]
-#define __pyx_kp_b_iso88591_7q_1_y_1_j_uAQ_6_A_q_3a_q_3a_q __pyx_string_tab[34]
-#define __pyx_kp_b_iso88591_7q_1_y_1_j_xs_q_uAQ_6_A_q_3a_q __pyx_string_tab[35]
-#define __pyx_kp_b_iso88591_Q_7q_1_8_q_y_5_S_j_y_1_q_1_AZy __pyx_string_tab[36]
+#define __pyx_n_u_allowed_mismatches __pyx_string_tab[8]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[9]
+#define __pyx_n_u_base __pyx_string_tab[10]
+#define __pyx_n_u_base_counts __pyx_string_tab[11]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[12]
+#define __pyx_n_u_count_iupac_motif __pyx_string_tab[13]
+#define __pyx_n_u_cython_helpers __pyx_string_tab[14]
+#define __pyx_n_u_find_longest_interstrand_complem __pyx_string_tab[15]
+#define __pyx_n_u_find_longest_intrastrand_complem __pyx_string_tab[16]
+#define __pyx_n_u_func __pyx_string_tab[17]
+#define __pyx_n_u_g4boost_score __pyx_string_tab[18]
+#define __pyx_n_u_g4hunter_score __pyx_string_tab[19]
+#define __pyx_n_u_gap_max_len_obj __pyx_string_tab[20]
+#define __pyx_n_u_gap_min_len __pyx_string_tab[21]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[22]
+#define __pyx_n_u_items __pyx_string_tab[23]
+#define __pyx_n_u_longest_run __pyx_string_tab[24]
+#define __pyx_n_u_main __pyx_string_tab[25]
+#define __pyx_n_u_max_len_obj __pyx_string_tab[26]
+#define __pyx_n_u_min_len __pyx_string_tab[27]
+#define __pyx_n_u_module __pyx_string_tab[28]
+#define __pyx_n_u_motif __pyx_string_tab[29]
+#define __pyx_n_u_name __pyx_string_tab[30]
+#define __pyx_n_u_pop __pyx_string_tab[31]
+#define __pyx_n_u_qualname __pyx_string_tab[32]
+#define __pyx_n_u_sequence __pyx_string_tab[33]
+#define __pyx_n_u_set_name __pyx_string_tab[34]
+#define __pyx_n_u_setdefault __pyx_string_tab[35]
+#define __pyx_n_u_test __pyx_string_tab[36]
+#define __pyx_n_u_values __pyx_string_tab[37]
+#define __pyx_n_u_window __pyx_string_tab[38]
+#define __pyx_kp_b_iso88591_1_7q_1_9_y_5_c_j_z_Bc_2Q_q__F_R __pyx_string_tab[39]
+#define __pyx_kp_b_iso88591_1_7q_1_y_1_j_xs_q_V1HBa_wc_Q_b __pyx_string_tab[40]
+#define __pyx_kp_b_iso88591_2_Qa_t3a_j_7_A_wa_a_a_a_U_2Rr_8 __pyx_string_tab[41]
+#define __pyx_kp_b_iso88591_2_Qa_t3a_j_7_A_wa_a_a_a_U_2Rr_8_2 __pyx_string_tab[42]
+#define __pyx_kp_b_iso88591_7q_1_y_1_j_uAQ_6_A_q_3a_q_3a_q __pyx_string_tab[43]
+#define __pyx_kp_b_iso88591_7q_1_y_1_j_xs_q_uAQ_6_A_q_3a_q __pyx_string_tab[44]
+#define __pyx_kp_b_iso88591_Q_7q_1_8_q_y_5_S_j_y_1_q_1_AZy __pyx_string_tab[45]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -2392,8 +2412,8 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   #if CYTHON_PEP489_MULTI_PHASE_INIT
   __Pyx_State_RemoveModule(NULL);
   #endif
-  for (int i=0; i<5; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<37; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<7; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<46; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
 /* #### Code section: module_state_clear_contents ### */
 /* CommonTypesMetaclass.module_state_clear */
 Py_CLEAR(clear_module_state->__pyx_CommonTypesMetaclassType);
@@ -2416,8 +2436,8 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_empty_tuple);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_empty_bytes);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_empty_unicode);
-  for (int i=0; i<5; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<37; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<7; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<46; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
 /* #### Code section: module_state_traverse_contents ### */
 /* CommonTypesMetaclass.module_state_traverse */
 Py_VISIT(traverse_module_state->__pyx_CommonTypesMetaclassType);
@@ -4514,8 +4534,8 @@ static PyObject *__pyx_pf_14cython_helpers_4base_counts(CYTHON_UNUSED PyObject *
  * 
  * 
  * cpdef double g4hunter_score(str sequence, int window):             # <<<<<<<<<<<<<<
- *     cdef Py_ssize_t seq_len
- *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
+ *     # Canonical G4Hunter (Bedrat, Lacroix & Mergny, NAR 2016): assign each base a
+ *     # run-length score (+min(run,4) within a G-tract, -min(run,4) within a
 */
 
 static PyObject *__pyx_pw_14cython_helpers_7g4hunter_score(PyObject *__pyx_self, 
@@ -4528,12 +4548,17 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
 static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *__pyx_v_sequence, int __pyx_v_window, CYTHON_UNUSED int __pyx_skip_dispatch) {
   Py_ssize_t __pyx_v_seq_len;
   char const *__pyx_v_seq_data;
-  Py_ssize_t __pyx_v_segments;
-  Py_ssize_t __pyx_v_offset;
-  Py_ssize_t __pyx_v_inner;
-  double __pyx_v_total;
-  double __pyx_v_accum;
+  signed char *__pyx_v_scores;
+  Py_ssize_t __pyx_v_i;
+  Py_ssize_t __pyx_v_j;
+  Py_ssize_t __pyx_v_k;
   unsigned char __pyx_v_base;
+  int __pyx_v_run;
+  int __pyx_v_val;
+  double __pyx_v_total;
+  double __pyx_v_window_sum;
+  double __pyx_v_best;
+  double __pyx_v_mean_val;
   double __pyx_r;
   __Pyx_RefNannyDeclarations
   char const *__pyx_t_1;
@@ -4541,30 +4566,37 @@ static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *__pyx_v_sequence
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   size_t __pyx_t_5;
-  int __pyx_t_6;
-  Py_ssize_t __pyx_t_7;
-  Py_ssize_t __pyx_t_8;
+  unsigned char __pyx_t_6;
+  int __pyx_t_7;
+  int __pyx_t_8;
   Py_ssize_t __pyx_t_9;
-  int __pyx_t_10;
-  int __pyx_t_11;
-  Py_ssize_t __pyx_t_12;
-  unsigned char __pyx_t_13;
+  Py_ssize_t __pyx_t_10;
+  Py_ssize_t __pyx_t_11;
+  int __pyx_t_12;
+  char const *__pyx_t_13;
+  PyObject *__pyx_t_14 = NULL;
+  PyObject *__pyx_t_15 = NULL;
+  PyObject *__pyx_t_16 = NULL;
+  PyObject *__pyx_t_17 = NULL;
+  PyObject *__pyx_t_18 = NULL;
+  PyObject *__pyx_t_19 = NULL;
+  double __pyx_t_20;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("g4hunter_score", 0);
 
-  /* "cython_helpers.pyx":152
- * cpdef double g4hunter_score(str sequence, int window):
+  /* "cython_helpers.pyx":158
+ *     # returned. Range is roughly -4 .. +4; positive => G4, negative => i-motif.
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)             # <<<<<<<<<<<<<<
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
 */
-  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_seq_len)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 152, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_seq_len)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 158, __pyx_L1_error)
   __pyx_v_seq_data = __pyx_t_1;
 
-  /* "cython_helpers.pyx":153
+  /* "cython_helpers.pyx":159
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:             # <<<<<<<<<<<<<<
@@ -4574,7 +4606,7 @@ static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *__pyx_v_sequence
   __pyx_t_2 = (__pyx_v_seq_data == NULL);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cython_helpers.pyx":154
+    /* "cython_helpers.pyx":160
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")             # <<<<<<<<<<<<<<
@@ -4587,14 +4619,14 @@ static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *__pyx_v_sequence
       PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_Failed_to_access_sequence_data};
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 154, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 160, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 154, __pyx_L1_error)
+    __PYX_ERR(0, 160, __pyx_L1_error)
 
-    /* "cython_helpers.pyx":153
+    /* "cython_helpers.pyx":159
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:             # <<<<<<<<<<<<<<
@@ -4603,216 +4635,518 @@ static double __pyx_f_14cython_helpers_g4hunter_score(PyObject *__pyx_v_sequence
 */
   }
 
-  /* "cython_helpers.pyx":155
+  /* "cython_helpers.pyx":161
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:             # <<<<<<<<<<<<<<
  *         return 0.0
- *     if window <= 0 or window > seq_len:
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
 */
   __pyx_t_2 = (__pyx_v_seq_len == 0);
   if (__pyx_t_2) {
 
-    /* "cython_helpers.pyx":156
+    /* "cython_helpers.pyx":162
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:
  *         return 0.0             # <<<<<<<<<<<<<<
- *     if window <= 0 or window > seq_len:
- *         window = seq_len
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
+ *     if scores is NULL:
 */
     __pyx_r = 0.0;
     goto __pyx_L0;
 
-    /* "cython_helpers.pyx":155
+    /* "cython_helpers.pyx":161
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:             # <<<<<<<<<<<<<<
  *         return 0.0
- *     if window <= 0 or window > seq_len:
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
 */
   }
 
-  /* "cython_helpers.pyx":157
+  /* "cython_helpers.pyx":163
  *     if seq_len == 0:
  *         return 0.0
- *     if window <= 0 or window > seq_len:             # <<<<<<<<<<<<<<
- *         window = seq_len
- *     cdef Py_ssize_t segments = seq_len - window + 1
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))             # <<<<<<<<<<<<<<
+ *     if scores is NULL:
+ *         raise MemoryError()
 */
-  __pyx_t_6 = (__pyx_v_window <= 0);
-  if (!__pyx_t_6) {
-  } else {
-    __pyx_t_2 = __pyx_t_6;
-    goto __pyx_L6_bool_binop_done;
-  }
-  __pyx_t_6 = (__pyx_v_window > __pyx_v_seq_len);
-  __pyx_t_2 = __pyx_t_6;
-  __pyx_L6_bool_binop_done:;
-  if (__pyx_t_2) {
-
-    /* "cython_helpers.pyx":158
- *         return 0.0
- *     if window <= 0 or window > seq_len:
- *         window = seq_len             # <<<<<<<<<<<<<<
- *     cdef Py_ssize_t segments = seq_len - window + 1
- *     cdef Py_ssize_t offset, inner
-*/
-    __pyx_v_window = __pyx_v_seq_len;
-
-    /* "cython_helpers.pyx":157
- *     if seq_len == 0:
- *         return 0.0
- *     if window <= 0 or window > seq_len:             # <<<<<<<<<<<<<<
- *         window = seq_len
- *     cdef Py_ssize_t segments = seq_len - window + 1
-*/
-  }
-
-  /* "cython_helpers.pyx":159
- *     if window <= 0 or window > seq_len:
- *         window = seq_len
- *     cdef Py_ssize_t segments = seq_len - window + 1             # <<<<<<<<<<<<<<
- *     cdef Py_ssize_t offset, inner
- *     cdef double total
-*/
-  __pyx_v_segments = ((__pyx_v_seq_len - __pyx_v_window) + 1);
-
-  /* "cython_helpers.pyx":162
- *     cdef Py_ssize_t offset, inner
- *     cdef double total
- *     cdef double accum = 0.0             # <<<<<<<<<<<<<<
- *     cdef unsigned char base
- *     for offset in range(segments):
-*/
-  __pyx_v_accum = 0.0;
+  __pyx_v_scores = ((signed char *)malloc((__pyx_v_seq_len * (sizeof(signed char)))));
 
   /* "cython_helpers.pyx":164
- *     cdef double accum = 0.0
- *     cdef unsigned char base
- *     for offset in range(segments):             # <<<<<<<<<<<<<<
- *         total = 0.0
- *         for inner in range(window):
+ *         return 0.0
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
+ *     if scores is NULL:             # <<<<<<<<<<<<<<
+ *         raise MemoryError()
+ *     cdef Py_ssize_t i = 0
 */
-  __pyx_t_7 = __pyx_v_segments;
-  __pyx_t_8 = __pyx_t_7;
-  for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
-    __pyx_v_offset = __pyx_t_9;
+  __pyx_t_2 = (__pyx_v_scores == NULL);
+  if (unlikely(__pyx_t_2)) {
 
     /* "cython_helpers.pyx":165
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
+ *     if scores is NULL:
+ *         raise MemoryError()             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t i = 0
+ *     cdef Py_ssize_t j, k
+*/
+    PyErr_NoMemory(); __PYX_ERR(0, 165, __pyx_L1_error)
+
+    /* "cython_helpers.pyx":164
+ *         return 0.0
+ *     cdef signed char* scores = <signed char*>malloc(seq_len * sizeof(signed char))
+ *     if scores is NULL:             # <<<<<<<<<<<<<<
+ *         raise MemoryError()
+ *     cdef Py_ssize_t i = 0
+*/
+  }
+
+  /* "cython_helpers.pyx":166
+ *     if scores is NULL:
+ *         raise MemoryError()
+ *     cdef Py_ssize_t i = 0             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t j, k
  *     cdef unsigned char base
- *     for offset in range(segments):
- *         total = 0.0             # <<<<<<<<<<<<<<
- *         for inner in range(window):
- *             base = to_upper(seq_data[offset + inner])
 */
-    __pyx_v_total = 0.0;
+  __pyx_v_i = 0;
 
-    /* "cython_helpers.pyx":166
- *     for offset in range(segments):
- *         total = 0.0
- *         for inner in range(window):             # <<<<<<<<<<<<<<
- *             base = to_upper(seq_data[offset + inner])
- *             if base == 71:
+  /* "cython_helpers.pyx":170
+ *     cdef unsigned char base
+ *     cdef int run, val
+ *     cdef double total = 0.0             # <<<<<<<<<<<<<<
+ *     cdef double window_sum = 0.0
+ *     cdef double best, mean_val
 */
-    __pyx_t_10 = __pyx_v_window;
-    __pyx_t_11 = __pyx_t_10;
-    for (__pyx_t_12 = 0; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
-      __pyx_v_inner = __pyx_t_12;
+  __pyx_v_total = 0.0;
 
-      /* "cython_helpers.pyx":167
- *         total = 0.0
- *         for inner in range(window):
- *             base = to_upper(seq_data[offset + inner])             # <<<<<<<<<<<<<<
- *             if base == 71:
- *                 total += 1.0
+  /* "cython_helpers.pyx":171
+ *     cdef int run, val
+ *     cdef double total = 0.0
+ *     cdef double window_sum = 0.0             # <<<<<<<<<<<<<<
+ *     cdef double best, mean_val
+ *     try:
 */
-      __pyx_t_13 = __pyx_f_14cython_helpers_to_upper((__pyx_v_seq_data[(__pyx_v_offset + __pyx_v_inner)])); if (unlikely(__pyx_t_13 == ((unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 167, __pyx_L1_error)
-      __pyx_v_base = __pyx_t_13;
+  __pyx_v_window_sum = 0.0;
 
-      /* "cython_helpers.pyx":168
- *         for inner in range(window):
- *             base = to_upper(seq_data[offset + inner])
- *             if base == 71:             # <<<<<<<<<<<<<<
- *                 total += 1.0
- *             elif base == 67:
+  /* "cython_helpers.pyx":173
+ *     cdef double window_sum = 0.0
+ *     cdef double best, mean_val
+ *     try:             # <<<<<<<<<<<<<<
+ *         while i < seq_len:
+ *             base = to_upper(seq_data[i])
+*/
+  /*try:*/ {
+
+    /* "cython_helpers.pyx":174
+ *     cdef double best, mean_val
+ *     try:
+ *         while i < seq_len:             # <<<<<<<<<<<<<<
+ *             base = to_upper(seq_data[i])
+ *             if base == 71 or base == 67:  # G or C
+*/
+    while (1) {
+      __pyx_t_2 = (__pyx_v_i < __pyx_v_seq_len);
+      if (!__pyx_t_2) break;
+
+      /* "cython_helpers.pyx":175
+ *     try:
+ *         while i < seq_len:
+ *             base = to_upper(seq_data[i])             # <<<<<<<<<<<<<<
+ *             if base == 71 or base == 67:  # G or C
+ *                 j = i
+*/
+      __pyx_t_6 = __pyx_f_14cython_helpers_to_upper((__pyx_v_seq_data[__pyx_v_i])); if (unlikely(__pyx_t_6 == ((unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 175, __pyx_L7_error)
+      __pyx_v_base = __pyx_t_6;
+
+      /* "cython_helpers.pyx":176
+ *         while i < seq_len:
+ *             base = to_upper(seq_data[i])
+ *             if base == 71 or base == 67:  # G or C             # <<<<<<<<<<<<<<
+ *                 j = i
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:
 */
       switch (__pyx_v_base) {
         case 71:
-
-        /* "cython_helpers.pyx":169
- *             base = to_upper(seq_data[offset + inner])
- *             if base == 71:
- *                 total += 1.0             # <<<<<<<<<<<<<<
- *             elif base == 67:
- *                 total -= 1.0
-*/
-        __pyx_v_total = (__pyx_v_total + 1.0);
-
-        /* "cython_helpers.pyx":168
- *         for inner in range(window):
- *             base = to_upper(seq_data[offset + inner])
- *             if base == 71:             # <<<<<<<<<<<<<<
- *                 total += 1.0
- *             elif base == 67:
-*/
-        break;
         case 67:
 
-        /* "cython_helpers.pyx":171
- *                 total += 1.0
- *             elif base == 67:
- *                 total -= 1.0             # <<<<<<<<<<<<<<
- *         accum += fabs(total / window)
- *     return accum / segments
+        /* "cython_helpers.pyx":177
+ *             base = to_upper(seq_data[i])
+ *             if base == 71 or base == 67:  # G or C
+ *                 j = i             # <<<<<<<<<<<<<<
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:
+ *                     j += 1
 */
-        __pyx_v_total = (__pyx_v_total - 1.0);
+        __pyx_v_j = __pyx_v_i;
 
-        /* "cython_helpers.pyx":170
- *             if base == 71:
- *                 total += 1.0
- *             elif base == 67:             # <<<<<<<<<<<<<<
- *                 total -= 1.0
- *         accum += fabs(total / window)
+        /* "cython_helpers.pyx":178
+ *             if base == 71 or base == 67:  # G or C
+ *                 j = i
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:             # <<<<<<<<<<<<<<
+ *                     j += 1
+ *                 run = <int>(j - i)
+*/
+        while (1) {
+          __pyx_t_7 = (__pyx_v_j < __pyx_v_seq_len);
+          if (__pyx_t_7) {
+          } else {
+            __pyx_t_2 = __pyx_t_7;
+            goto __pyx_L13_bool_binop_done;
+          }
+          __pyx_t_6 = __pyx_f_14cython_helpers_to_upper((__pyx_v_seq_data[__pyx_v_j])); if (unlikely(__pyx_t_6 == ((unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 178, __pyx_L7_error)
+          __pyx_t_7 = (__pyx_t_6 == __pyx_v_base);
+          __pyx_t_2 = __pyx_t_7;
+          __pyx_L13_bool_binop_done:;
+          if (!__pyx_t_2) break;
+
+          /* "cython_helpers.pyx":179
+ *                 j = i
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:
+ *                     j += 1             # <<<<<<<<<<<<<<
+ *                 run = <int>(j - i)
+ *                 val = run if run < 4 else 4
+*/
+          __pyx_v_j = (__pyx_v_j + 1);
+        }
+
+        /* "cython_helpers.pyx":180
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:
+ *                     j += 1
+ *                 run = <int>(j - i)             # <<<<<<<<<<<<<<
+ *                 val = run if run < 4 else 4
+ *                 if base == 67:  # C-tract is negative
+*/
+        __pyx_v_run = ((int)(__pyx_v_j - __pyx_v_i));
+
+        /* "cython_helpers.pyx":181
+ *                     j += 1
+ *                 run = <int>(j - i)
+ *                 val = run if run < 4 else 4             # <<<<<<<<<<<<<<
+ *                 if base == 67:  # C-tract is negative
+ *                     val = -val
+*/
+        __pyx_t_2 = (__pyx_v_run < 4);
+        if (__pyx_t_2) {
+          __pyx_t_8 = __pyx_v_run;
+        } else {
+          __pyx_t_8 = 4;
+        }
+        __pyx_v_val = __pyx_t_8;
+
+        /* "cython_helpers.pyx":182
+ *                 run = <int>(j - i)
+ *                 val = run if run < 4 else 4
+ *                 if base == 67:  # C-tract is negative             # <<<<<<<<<<<<<<
+ *                     val = -val
+ *                 for k in range(i, j):
+*/
+        __pyx_t_2 = (__pyx_v_base == 67);
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":183
+ *                 val = run if run < 4 else 4
+ *                 if base == 67:  # C-tract is negative
+ *                     val = -val             # <<<<<<<<<<<<<<
+ *                 for k in range(i, j):
+ *                     scores[k] = <signed char>val
+*/
+          __pyx_v_val = (-__pyx_v_val);
+
+          /* "cython_helpers.pyx":182
+ *                 run = <int>(j - i)
+ *                 val = run if run < 4 else 4
+ *                 if base == 67:  # C-tract is negative             # <<<<<<<<<<<<<<
+ *                     val = -val
+ *                 for k in range(i, j):
+*/
+        }
+
+        /* "cython_helpers.pyx":184
+ *                 if base == 67:  # C-tract is negative
+ *                     val = -val
+ *                 for k in range(i, j):             # <<<<<<<<<<<<<<
+ *                     scores[k] = <signed char>val
+ *                 i = j
+*/
+        __pyx_t_9 = __pyx_v_j;
+        __pyx_t_10 = __pyx_t_9;
+        for (__pyx_t_11 = __pyx_v_i; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
+          __pyx_v_k = __pyx_t_11;
+
+          /* "cython_helpers.pyx":185
+ *                     val = -val
+ *                 for k in range(i, j):
+ *                     scores[k] = <signed char>val             # <<<<<<<<<<<<<<
+ *                 i = j
+ *             else:
+*/
+          (__pyx_v_scores[__pyx_v_k]) = ((signed char)__pyx_v_val);
+        }
+
+        /* "cython_helpers.pyx":186
+ *                 for k in range(i, j):
+ *                     scores[k] = <signed char>val
+ *                 i = j             # <<<<<<<<<<<<<<
+ *             else:
+ *                 scores[i] = 0
+*/
+        __pyx_v_i = __pyx_v_j;
+
+        /* "cython_helpers.pyx":176
+ *         while i < seq_len:
+ *             base = to_upper(seq_data[i])
+ *             if base == 71 or base == 67:  # G or C             # <<<<<<<<<<<<<<
+ *                 j = i
+ *                 while j < seq_len and to_upper(seq_data[j]) == base:
 */
         break;
-        default: break;
+        default:
+
+        /* "cython_helpers.pyx":188
+ *                 i = j
+ *             else:
+ *                 scores[i] = 0             # <<<<<<<<<<<<<<
+ *                 i += 1
+ *         if window <= 0 or window >= seq_len:
+*/
+        (__pyx_v_scores[__pyx_v_i]) = 0;
+
+        /* "cython_helpers.pyx":189
+ *             else:
+ *                 scores[i] = 0
+ *                 i += 1             # <<<<<<<<<<<<<<
+ *         if window <= 0 or window >= seq_len:
+ *             for i in range(seq_len):
+*/
+        __pyx_v_i = (__pyx_v_i + 1);
+        break;
       }
     }
 
-    /* "cython_helpers.pyx":172
- *             elif base == 67:
- *                 total -= 1.0
- *         accum += fabs(total / window)             # <<<<<<<<<<<<<<
- *     return accum / segments
- * 
+    /* "cython_helpers.pyx":190
+ *                 scores[i] = 0
+ *                 i += 1
+ *         if window <= 0 or window >= seq_len:             # <<<<<<<<<<<<<<
+ *             for i in range(seq_len):
+ *                 total += scores[i]
+*/
+    __pyx_t_7 = (__pyx_v_window <= 0);
+    if (!__pyx_t_7) {
+    } else {
+      __pyx_t_2 = __pyx_t_7;
+      goto __pyx_L19_bool_binop_done;
+    }
+    __pyx_t_7 = (__pyx_v_window >= __pyx_v_seq_len);
+    __pyx_t_2 = __pyx_t_7;
+    __pyx_L19_bool_binop_done:;
+    if (__pyx_t_2) {
+
+      /* "cython_helpers.pyx":191
+ *                 i += 1
+ *         if window <= 0 or window >= seq_len:
+ *             for i in range(seq_len):             # <<<<<<<<<<<<<<
+ *                 total += scores[i]
+ *             return total / seq_len
+*/
+      __pyx_t_9 = __pyx_v_seq_len;
+      __pyx_t_10 = __pyx_t_9;
+      for (__pyx_t_11 = 0; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
+        __pyx_v_i = __pyx_t_11;
+
+        /* "cython_helpers.pyx":192
+ *         if window <= 0 or window >= seq_len:
+ *             for i in range(seq_len):
+ *                 total += scores[i]             # <<<<<<<<<<<<<<
+ *             return total / seq_len
+ *         for i in range(window):
+*/
+        __pyx_v_total = (__pyx_v_total + (__pyx_v_scores[__pyx_v_i]));
+      }
+
+      /* "cython_helpers.pyx":193
+ *             for i in range(seq_len):
+ *                 total += scores[i]
+ *             return total / seq_len             # <<<<<<<<<<<<<<
+ *         for i in range(window):
+ *             window_sum += scores[i]
+*/
+      if (unlikely(__pyx_v_seq_len == 0)) {
+        PyErr_SetString(PyExc_ZeroDivisionError, "float division");
+        __PYX_ERR(0, 193, __pyx_L7_error)
+      }
+      __pyx_r = (__pyx_v_total / ((double)__pyx_v_seq_len));
+      goto __pyx_L6_return;
+
+      /* "cython_helpers.pyx":190
+ *                 scores[i] = 0
+ *                 i += 1
+ *         if window <= 0 or window >= seq_len:             # <<<<<<<<<<<<<<
+ *             for i in range(seq_len):
+ *                 total += scores[i]
+*/
+    }
+
+    /* "cython_helpers.pyx":194
+ *                 total += scores[i]
+ *             return total / seq_len
+ *         for i in range(window):             # <<<<<<<<<<<<<<
+ *             window_sum += scores[i]
+ *         best = window_sum / window
+*/
+    __pyx_t_8 = __pyx_v_window;
+    __pyx_t_12 = __pyx_t_8;
+    for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_12; __pyx_t_9+=1) {
+      __pyx_v_i = __pyx_t_9;
+
+      /* "cython_helpers.pyx":195
+ *             return total / seq_len
+ *         for i in range(window):
+ *             window_sum += scores[i]             # <<<<<<<<<<<<<<
+ *         best = window_sum / window
+ *         for i in range(window, seq_len):
+*/
+      __pyx_v_window_sum = (__pyx_v_window_sum + (__pyx_v_scores[__pyx_v_i]));
+    }
+
+    /* "cython_helpers.pyx":196
+ *         for i in range(window):
+ *             window_sum += scores[i]
+ *         best = window_sum / window             # <<<<<<<<<<<<<<
+ *         for i in range(window, seq_len):
+ *             window_sum += scores[i] - scores[i - window]
 */
     if (unlikely(__pyx_v_window == 0)) {
       PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-      __PYX_ERR(0, 172, __pyx_L1_error)
+      __PYX_ERR(0, 196, __pyx_L7_error)
     }
-    __pyx_v_accum = (__pyx_v_accum + fabs((__pyx_v_total / ((double)__pyx_v_window))));
+    __pyx_v_best = (__pyx_v_window_sum / ((double)__pyx_v_window));
+
+    /* "cython_helpers.pyx":197
+ *             window_sum += scores[i]
+ *         best = window_sum / window
+ *         for i in range(window, seq_len):             # <<<<<<<<<<<<<<
+ *             window_sum += scores[i] - scores[i - window]
+ *             mean_val = window_sum / window
+*/
+    __pyx_t_9 = __pyx_v_seq_len;
+    __pyx_t_10 = __pyx_t_9;
+    for (__pyx_t_11 = __pyx_v_window; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
+      __pyx_v_i = __pyx_t_11;
+
+      /* "cython_helpers.pyx":198
+ *         best = window_sum / window
+ *         for i in range(window, seq_len):
+ *             window_sum += scores[i] - scores[i - window]             # <<<<<<<<<<<<<<
+ *             mean_val = window_sum / window
+ *             if fabs(mean_val) > fabs(best):
+*/
+      __pyx_v_window_sum = (__pyx_v_window_sum + ((__pyx_v_scores[__pyx_v_i]) - (__pyx_v_scores[(__pyx_v_i - __pyx_v_window)])));
+
+      /* "cython_helpers.pyx":199
+ *         for i in range(window, seq_len):
+ *             window_sum += scores[i] - scores[i - window]
+ *             mean_val = window_sum / window             # <<<<<<<<<<<<<<
+ *             if fabs(mean_val) > fabs(best):
+ *                 best = mean_val
+*/
+      if (unlikely(__pyx_v_window == 0)) {
+        PyErr_SetString(PyExc_ZeroDivisionError, "float division");
+        __PYX_ERR(0, 199, __pyx_L7_error)
+      }
+      __pyx_v_mean_val = (__pyx_v_window_sum / ((double)__pyx_v_window));
+
+      /* "cython_helpers.pyx":200
+ *             window_sum += scores[i] - scores[i - window]
+ *             mean_val = window_sum / window
+ *             if fabs(mean_val) > fabs(best):             # <<<<<<<<<<<<<<
+ *                 best = mean_val
+ *         return best
+*/
+      __pyx_t_2 = (fabs(__pyx_v_mean_val) > fabs(__pyx_v_best));
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":201
+ *             mean_val = window_sum / window
+ *             if fabs(mean_val) > fabs(best):
+ *                 best = mean_val             # <<<<<<<<<<<<<<
+ *         return best
+ *     finally:
+*/
+        __pyx_v_best = __pyx_v_mean_val;
+
+        /* "cython_helpers.pyx":200
+ *             window_sum += scores[i] - scores[i - window]
+ *             mean_val = window_sum / window
+ *             if fabs(mean_val) > fabs(best):             # <<<<<<<<<<<<<<
+ *                 best = mean_val
+ *         return best
+*/
+      }
+    }
+
+    /* "cython_helpers.pyx":202
+ *             if fabs(mean_val) > fabs(best):
+ *                 best = mean_val
+ *         return best             # <<<<<<<<<<<<<<
+ *     finally:
+ *         free(scores)
+*/
+    __pyx_r = __pyx_v_best;
+    goto __pyx_L6_return;
   }
 
-  /* "cython_helpers.pyx":173
- *                 total -= 1.0
- *         accum += fabs(total / window)
- *     return accum / segments             # <<<<<<<<<<<<<<
+  /* "cython_helpers.pyx":204
+ *         return best
+ *     finally:
+ *         free(scores)             # <<<<<<<<<<<<<<
  * 
  * 
 */
-  if (unlikely(__pyx_v_segments == 0)) {
-    PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-    __PYX_ERR(0, 173, __pyx_L1_error)
+  /*finally:*/ {
+    __pyx_L7_error:;
+    /*exception exit:*/{
+      __Pyx_PyThreadState_declare
+      __Pyx_PyThreadState_assign
+      __pyx_t_14 = 0; __pyx_t_15 = 0; __pyx_t_16 = 0; __pyx_t_17 = 0; __pyx_t_18 = 0; __pyx_t_19 = 0;
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+       __Pyx_ExceptionSwap(&__pyx_t_17, &__pyx_t_18, &__pyx_t_19);
+      if ( unlikely(__Pyx_GetException(&__pyx_t_14, &__pyx_t_15, &__pyx_t_16) < 0)) __Pyx_ErrFetch(&__pyx_t_14, &__pyx_t_15, &__pyx_t_16);
+      __Pyx_XGOTREF(__pyx_t_14);
+      __Pyx_XGOTREF(__pyx_t_15);
+      __Pyx_XGOTREF(__pyx_t_16);
+      __Pyx_XGOTREF(__pyx_t_17);
+      __Pyx_XGOTREF(__pyx_t_18);
+      __Pyx_XGOTREF(__pyx_t_19);
+      __pyx_t_8 = __pyx_lineno; __pyx_t_12 = __pyx_clineno; __pyx_t_13 = __pyx_filename;
+      {
+        free(__pyx_v_scores);
+      }
+      __Pyx_XGIVEREF(__pyx_t_17);
+      __Pyx_XGIVEREF(__pyx_t_18);
+      __Pyx_XGIVEREF(__pyx_t_19);
+      __Pyx_ExceptionReset(__pyx_t_17, __pyx_t_18, __pyx_t_19);
+      __Pyx_XGIVEREF(__pyx_t_14);
+      __Pyx_XGIVEREF(__pyx_t_15);
+      __Pyx_XGIVEREF(__pyx_t_16);
+      __Pyx_ErrRestore(__pyx_t_14, __pyx_t_15, __pyx_t_16);
+      __pyx_t_14 = 0; __pyx_t_15 = 0; __pyx_t_16 = 0; __pyx_t_17 = 0; __pyx_t_18 = 0; __pyx_t_19 = 0;
+      __pyx_lineno = __pyx_t_8; __pyx_clineno = __pyx_t_12; __pyx_filename = __pyx_t_13;
+      goto __pyx_L1_error;
+    }
+    __pyx_L6_return: {
+      __pyx_t_20 = __pyx_r;
+      free(__pyx_v_scores);
+      __pyx_r = __pyx_t_20;
+      goto __pyx_L0;
+    }
   }
-  __pyx_r = (__pyx_v_accum / ((double)__pyx_v_segments));
-  goto __pyx_L0;
 
   /* "cython_helpers.pyx":150
  * 
  * 
  * cpdef double g4hunter_score(str sequence, int window):             # <<<<<<<<<<<<<<
- *     cdef Py_ssize_t seq_len
- *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
+ *     # Canonical G4Hunter (Bedrat, Lacroix & Mergny, NAR 2016): assign each base a
+ *     # run-length score (+min(run,4) within a G-tract, -min(run,4) within a
 */
 
   /* function exit code */
@@ -4957,7 +5291,7 @@ static PyObject *__pyx_pf_14cython_helpers_6g4hunter_score(CYTHON_UNUSED PyObjec
   return __pyx_r;
 }
 
-/* "cython_helpers.pyx":176
+/* "cython_helpers.pyx":207
  * 
  * 
  * cpdef double g4boost_score(str sequence):             # <<<<<<<<<<<<<<
@@ -5007,17 +5341,17 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("g4boost_score", 0);
 
-  /* "cython_helpers.pyx":178
+  /* "cython_helpers.pyx":209
  * cpdef double g4boost_score(str sequence):
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)             # <<<<<<<<<<<<<<
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
 */
-  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_seq_len)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 178, __pyx_L1_error)
+  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_seq_len)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 209, __pyx_L1_error)
   __pyx_v_seq_data = __pyx_t_1;
 
-  /* "cython_helpers.pyx":179
+  /* "cython_helpers.pyx":210
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:             # <<<<<<<<<<<<<<
@@ -5027,7 +5361,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   __pyx_t_2 = (__pyx_v_seq_data == NULL);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cython_helpers.pyx":180
+    /* "cython_helpers.pyx":211
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")             # <<<<<<<<<<<<<<
@@ -5040,14 +5374,14 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
       PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_Failed_to_access_sequence_data};
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 180, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 211, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 180, __pyx_L1_error)
+    __PYX_ERR(0, 211, __pyx_L1_error)
 
-    /* "cython_helpers.pyx":179
+    /* "cython_helpers.pyx":210
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
  *     if seq_data is NULL:             # <<<<<<<<<<<<<<
@@ -5056,7 +5390,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   }
 
-  /* "cython_helpers.pyx":181
+  /* "cython_helpers.pyx":212
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:             # <<<<<<<<<<<<<<
@@ -5066,7 +5400,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   __pyx_t_2 = (__pyx_v_seq_len == 0);
   if (__pyx_t_2) {
 
-    /* "cython_helpers.pyx":182
+    /* "cython_helpers.pyx":213
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:
  *         return 0.0             # <<<<<<<<<<<<<<
@@ -5076,7 +5410,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
     __pyx_r = 0.0;
     goto __pyx_L0;
 
-    /* "cython_helpers.pyx":181
+    /* "cython_helpers.pyx":212
  *     if seq_data is NULL:
  *         raise ValueError("Failed to access sequence data.")
  *     if seq_len == 0:             # <<<<<<<<<<<<<<
@@ -5085,7 +5419,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   }
 
-  /* "cython_helpers.pyx":183
+  /* "cython_helpers.pyx":214
  *     if seq_len == 0:
  *         return 0.0
  *     cdef long a_count = 0             # <<<<<<<<<<<<<<
@@ -5094,7 +5428,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_a_count = 0;
 
-  /* "cython_helpers.pyx":184
+  /* "cython_helpers.pyx":215
  *         return 0.0
  *     cdef long a_count = 0
  *     cdef long c_count = 0             # <<<<<<<<<<<<<<
@@ -5103,7 +5437,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_c_count = 0;
 
-  /* "cython_helpers.pyx":185
+  /* "cython_helpers.pyx":216
  *     cdef long a_count = 0
  *     cdef long c_count = 0
  *     cdef long g_count = 0             # <<<<<<<<<<<<<<
@@ -5112,7 +5446,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_g_count = 0;
 
-  /* "cython_helpers.pyx":186
+  /* "cython_helpers.pyx":217
  *     cdef long c_count = 0
  *     cdef long g_count = 0
  *     cdef long t_count = 0             # <<<<<<<<<<<<<<
@@ -5121,7 +5455,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_t_count = 0;
 
-  /* "cython_helpers.pyx":189
+  /* "cython_helpers.pyx":220
  *     cdef Py_ssize_t idx
  *     cdef unsigned char upper
  *     for idx in range(seq_len):             # <<<<<<<<<<<<<<
@@ -5133,17 +5467,17 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   for (__pyx_t_8 = 0; __pyx_t_8 < __pyx_t_7; __pyx_t_8+=1) {
     __pyx_v_idx = __pyx_t_8;
 
-    /* "cython_helpers.pyx":190
+    /* "cython_helpers.pyx":221
  *     cdef unsigned char upper
  *     for idx in range(seq_len):
  *         upper = to_upper(seq_data[idx])             # <<<<<<<<<<<<<<
  *         if upper == 65:
  *             a_count += 1
 */
-    __pyx_t_9 = __pyx_f_14cython_helpers_to_upper((__pyx_v_seq_data[__pyx_v_idx])); if (unlikely(__pyx_t_9 == ((unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 190, __pyx_L1_error)
+    __pyx_t_9 = __pyx_f_14cython_helpers_to_upper((__pyx_v_seq_data[__pyx_v_idx])); if (unlikely(__pyx_t_9 == ((unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 221, __pyx_L1_error)
     __pyx_v_upper = __pyx_t_9;
 
-    /* "cython_helpers.pyx":191
+    /* "cython_helpers.pyx":222
  *     for idx in range(seq_len):
  *         upper = to_upper(seq_data[idx])
  *         if upper == 65:             # <<<<<<<<<<<<<<
@@ -5153,7 +5487,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
     switch (__pyx_v_upper) {
       case 65:
 
-      /* "cython_helpers.pyx":192
+      /* "cython_helpers.pyx":223
  *         upper = to_upper(seq_data[idx])
  *         if upper == 65:
  *             a_count += 1             # <<<<<<<<<<<<<<
@@ -5162,7 +5496,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
       __pyx_v_a_count = (__pyx_v_a_count + 1);
 
-      /* "cython_helpers.pyx":191
+      /* "cython_helpers.pyx":222
  *     for idx in range(seq_len):
  *         upper = to_upper(seq_data[idx])
  *         if upper == 65:             # <<<<<<<<<<<<<<
@@ -5172,7 +5506,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
       break;
       case 67:
 
-      /* "cython_helpers.pyx":194
+      /* "cython_helpers.pyx":225
  *             a_count += 1
  *         elif upper == 67:
  *             c_count += 1             # <<<<<<<<<<<<<<
@@ -5181,7 +5515,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
       __pyx_v_c_count = (__pyx_v_c_count + 1);
 
-      /* "cython_helpers.pyx":193
+      /* "cython_helpers.pyx":224
  *         if upper == 65:
  *             a_count += 1
  *         elif upper == 67:             # <<<<<<<<<<<<<<
@@ -5191,7 +5525,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
       break;
       case 71:
 
-      /* "cython_helpers.pyx":196
+      /* "cython_helpers.pyx":227
  *             c_count += 1
  *         elif upper == 71:
  *             g_count += 1             # <<<<<<<<<<<<<<
@@ -5200,7 +5534,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
       __pyx_v_g_count = (__pyx_v_g_count + 1);
 
-      /* "cython_helpers.pyx":195
+      /* "cython_helpers.pyx":226
  *         elif upper == 67:
  *             c_count += 1
  *         elif upper == 71:             # <<<<<<<<<<<<<<
@@ -5210,7 +5544,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
       break;
       case 84:
 
-      /* "cython_helpers.pyx":197
+      /* "cython_helpers.pyx":228
  *         elif upper == 71:
  *             g_count += 1
  *         elif upper in (84, 85):             # <<<<<<<<<<<<<<
@@ -5219,7 +5553,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
       case 85:
 
-      /* "cython_helpers.pyx":198
+      /* "cython_helpers.pyx":229
  *             g_count += 1
  *         elif upper in (84, 85):
  *             t_count += 1             # <<<<<<<<<<<<<<
@@ -5228,7 +5562,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
       __pyx_v_t_count = (__pyx_v_t_count + 1);
 
-      /* "cython_helpers.pyx":197
+      /* "cython_helpers.pyx":228
  *         elif upper == 71:
  *             g_count += 1
  *         elif upper in (84, 85):             # <<<<<<<<<<<<<<
@@ -5240,7 +5574,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
     }
   }
 
-  /* "cython_helpers.pyx":199
+  /* "cython_helpers.pyx":230
  *         elif upper in (84, 85):
  *             t_count += 1
  *     cdef double length = seq_len             # <<<<<<<<<<<<<<
@@ -5249,7 +5583,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_length = __pyx_v_seq_len;
 
-  /* "cython_helpers.pyx":200
+  /* "cython_helpers.pyx":231
  *             t_count += 1
  *     cdef double length = seq_len
  *     cdef double g_pct = g_count / length             # <<<<<<<<<<<<<<
@@ -5258,11 +5592,11 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   if (unlikely(__pyx_v_length == 0)) {
     PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-    __PYX_ERR(0, 200, __pyx_L1_error)
+    __PYX_ERR(0, 231, __pyx_L1_error)
   }
   __pyx_v_g_pct = (((double)__pyx_v_g_count) / __pyx_v_length);
 
-  /* "cython_helpers.pyx":201
+  /* "cython_helpers.pyx":232
  *     cdef double length = seq_len
  *     cdef double g_pct = g_count / length
  *     cdef double c_pct = c_count / length             # <<<<<<<<<<<<<<
@@ -5271,11 +5605,11 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   if (unlikely(__pyx_v_length == 0)) {
     PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-    __PYX_ERR(0, 201, __pyx_L1_error)
+    __PYX_ERR(0, 232, __pyx_L1_error)
   }
   __pyx_v_c_pct = (((double)__pyx_v_c_count) / __pyx_v_length);
 
-  /* "cython_helpers.pyx":202
+  /* "cython_helpers.pyx":233
  *     cdef double g_pct = g_count / length
  *     cdef double c_pct = c_count / length
  *     cdef double purine_pct = (g_count + a_count) / length             # <<<<<<<<<<<<<<
@@ -5285,21 +5619,21 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   __pyx_t_10 = (__pyx_v_g_count + __pyx_v_a_count);
   if (unlikely(__pyx_v_length == 0)) {
     PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-    __PYX_ERR(0, 202, __pyx_L1_error)
+    __PYX_ERR(0, 233, __pyx_L1_error)
   }
   __pyx_v_purine_pct = (((double)__pyx_t_10) / __pyx_v_length);
 
-  /* "cython_helpers.pyx":203
+  /* "cython_helpers.pyx":234
  *     cdef double c_pct = c_count / length
  *     cdef double purine_pct = (g_count + a_count) / length
  *     cdef int g_run = longest_run_bytes(seq_data, seq_len, 71)             # <<<<<<<<<<<<<<
  *     cdef double balance = 1.0 - fabs(g_pct - c_pct)
  *     cdef double run_ratio = g_run / length
 */
-  __pyx_t_11 = __pyx_f_14cython_helpers_longest_run_bytes(__pyx_v_seq_data, __pyx_v_seq_len, 71); if (unlikely(__pyx_t_11 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 203, __pyx_L1_error)
+  __pyx_t_11 = __pyx_f_14cython_helpers_longest_run_bytes(__pyx_v_seq_data, __pyx_v_seq_len, 71); if (unlikely(__pyx_t_11 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 234, __pyx_L1_error)
   __pyx_v_g_run = __pyx_t_11;
 
-  /* "cython_helpers.pyx":204
+  /* "cython_helpers.pyx":235
  *     cdef double purine_pct = (g_count + a_count) / length
  *     cdef int g_run = longest_run_bytes(seq_data, seq_len, 71)
  *     cdef double balance = 1.0 - fabs(g_pct - c_pct)             # <<<<<<<<<<<<<<
@@ -5308,7 +5642,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_balance = (1.0 - fabs((__pyx_v_g_pct - __pyx_v_c_pct)));
 
-  /* "cython_helpers.pyx":205
+  /* "cython_helpers.pyx":236
  *     cdef int g_run = longest_run_bytes(seq_data, seq_len, 71)
  *     cdef double balance = 1.0 - fabs(g_pct - c_pct)
  *     cdef double run_ratio = g_run / length             # <<<<<<<<<<<<<<
@@ -5317,11 +5651,11 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   if (unlikely(__pyx_v_length == 0)) {
     PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-    __PYX_ERR(0, 205, __pyx_L1_error)
+    __PYX_ERR(0, 236, __pyx_L1_error)
   }
   __pyx_v_run_ratio = (((double)__pyx_v_g_run) / __pyx_v_length);
 
-  /* "cython_helpers.pyx":206
+  /* "cython_helpers.pyx":237
  *     cdef double balance = 1.0 - fabs(g_pct - c_pct)
  *     cdef double run_ratio = g_run / length
  *     cdef double score = 0.55 * g_pct + 0.25 * run_ratio + 0.1 * purine_pct + 0.1 * balance             # <<<<<<<<<<<<<<
@@ -5330,7 +5664,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   __pyx_v_score = ((((0.55 * __pyx_v_g_pct) + (0.25 * __pyx_v_run_ratio)) + (0.1 * __pyx_v_purine_pct)) + (0.1 * __pyx_v_balance));
 
-  /* "cython_helpers.pyx":207
+  /* "cython_helpers.pyx":238
  *     cdef double run_ratio = g_run / length
  *     cdef double score = 0.55 * g_pct + 0.25 * run_ratio + 0.1 * purine_pct + 0.1 * balance
  *     if score < 0.0:             # <<<<<<<<<<<<<<
@@ -5340,7 +5674,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   __pyx_t_2 = (__pyx_v_score < 0.0);
   if (__pyx_t_2) {
 
-    /* "cython_helpers.pyx":208
+    /* "cython_helpers.pyx":239
  *     cdef double score = 0.55 * g_pct + 0.25 * run_ratio + 0.1 * purine_pct + 0.1 * balance
  *     if score < 0.0:
  *         return 0.0             # <<<<<<<<<<<<<<
@@ -5350,7 +5684,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
     __pyx_r = 0.0;
     goto __pyx_L0;
 
-    /* "cython_helpers.pyx":207
+    /* "cython_helpers.pyx":238
  *     cdef double run_ratio = g_run / length
  *     cdef double score = 0.55 * g_pct + 0.25 * run_ratio + 0.1 * purine_pct + 0.1 * balance
  *     if score < 0.0:             # <<<<<<<<<<<<<<
@@ -5359,7 +5693,7 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   }
 
-  /* "cython_helpers.pyx":209
+  /* "cython_helpers.pyx":240
  *     if score < 0.0:
  *         return 0.0
  *     if score > 1.0:             # <<<<<<<<<<<<<<
@@ -5369,16 +5703,17 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
   __pyx_t_2 = (__pyx_v_score > 1.0);
   if (__pyx_t_2) {
 
-    /* "cython_helpers.pyx":210
+    /* "cython_helpers.pyx":241
  *         return 0.0
  *     if score > 1.0:
  *         return 1.0             # <<<<<<<<<<<<<<
  *     return score
+ * 
 */
     __pyx_r = 1.0;
     goto __pyx_L0;
 
-    /* "cython_helpers.pyx":209
+    /* "cython_helpers.pyx":240
  *     if score < 0.0:
  *         return 0.0
  *     if score > 1.0:             # <<<<<<<<<<<<<<
@@ -5387,15 +5722,17 @@ static double __pyx_f_14cython_helpers_g4boost_score(PyObject *__pyx_v_sequence,
 */
   }
 
-  /* "cython_helpers.pyx":211
+  /* "cython_helpers.pyx":242
  *     if score > 1.0:
  *         return 1.0
  *     return score             # <<<<<<<<<<<<<<
+ * 
+ * 
 */
   __pyx_r = __pyx_v_score;
   goto __pyx_L0;
 
-  /* "cython_helpers.pyx":176
+  /* "cython_helpers.pyx":207
  * 
  * 
  * cpdef double g4boost_score(str sequence):             # <<<<<<<<<<<<<<
@@ -5453,32 +5790,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_sequence,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 176, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 207, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 176, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 207, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "g4boost_score", 0) < (0)) __PYX_ERR(0, 176, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "g4boost_score", 0) < (0)) __PYX_ERR(0, 207, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("g4boost_score", 1, 1, 1, i); __PYX_ERR(0, 176, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("g4boost_score", 1, 1, 1, i); __PYX_ERR(0, 207, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 176, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 207, __pyx_L3_error)
     }
     __pyx_v_sequence = ((PyObject*)values[0]);
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("g4boost_score", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 176, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("g4boost_score", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 207, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5489,7 +5826,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_sequence), (&PyUnicode_Type), 1, "sequence", 1))) __PYX_ERR(0, 176, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_sequence), (&PyUnicode_Type), 1, "sequence", 1))) __PYX_ERR(0, 207, __pyx_L1_error)
   __pyx_r = __pyx_pf_14cython_helpers_8g4boost_score(__pyx_self, __pyx_v_sequence);
 
   /* function exit code */
@@ -5519,8 +5856,8 @@ static PyObject *__pyx_pf_14cython_helpers_8g4boost_score(CYTHON_UNUSED PyObject
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("g4boost_score", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_14cython_helpers_g4boost_score(__pyx_v_sequence, 1); if (unlikely(__pyx_t_1 == ((double)-1) && PyErr_Occurred())) __PYX_ERR(0, 176, __pyx_L1_error)
-  __pyx_t_2 = PyFloat_FromDouble(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 176, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_14cython_helpers_g4boost_score(__pyx_v_sequence, 1); if (unlikely(__pyx_t_1 == ((double)-1) && PyErr_Occurred())) __PYX_ERR(0, 207, __pyx_L1_error)
+  __pyx_t_2 = PyFloat_FromDouble(__pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 207, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_r = __pyx_t_2;
   __pyx_t_2 = 0;
@@ -5530,6 +5867,2031 @@ static PyObject *__pyx_pf_14cython_helpers_8g4boost_score(CYTHON_UNUSED PyObject
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_AddTraceback("cython_helpers.g4boost_score", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "cython_helpers.pyx":247
+ * cdef unsigned char COMPLEMENT_TABLE[256]
+ * 
+ * cdef void init_table():             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     for i in range(256):
+*/
+
+static void __pyx_f_14cython_helpers_init_table(void) {
+  int __pyx_v_i;
+  int __pyx_t_1;
+
+  /* "cython_helpers.pyx":249
+ * cdef void init_table():
+ *     cdef int i
+ *     for i in range(256):             # <<<<<<<<<<<<<<
+ *         COMPLEMENT_TABLE[i] = <unsigned char>i
+ *     COMPLEMENT_TABLE[65] = 84   # A -> T
+*/
+  for (__pyx_t_1 = 0; __pyx_t_1 < 0x100; __pyx_t_1+=1) {
+    __pyx_v_i = __pyx_t_1;
+
+    /* "cython_helpers.pyx":250
+ *     cdef int i
+ *     for i in range(256):
+ *         COMPLEMENT_TABLE[i] = <unsigned char>i             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[65] = 84   # A -> T
+ *     COMPLEMENT_TABLE[67] = 71   # C -> G
+*/
+    (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[__pyx_v_i]) = ((unsigned char)__pyx_v_i);
+  }
+
+  /* "cython_helpers.pyx":251
+ *     for i in range(256):
+ *         COMPLEMENT_TABLE[i] = <unsigned char>i
+ *     COMPLEMENT_TABLE[65] = 84   # A -> T             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[67] = 71   # C -> G
+ *     COMPLEMENT_TABLE[71] = 67   # G -> C
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[65]) = 84;
+
+  /* "cython_helpers.pyx":252
+ *         COMPLEMENT_TABLE[i] = <unsigned char>i
+ *     COMPLEMENT_TABLE[65] = 84   # A -> T
+ *     COMPLEMENT_TABLE[67] = 71   # C -> G             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[71] = 67   # G -> C
+ *     COMPLEMENT_TABLE[84] = 65   # T -> A
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[67]) = 71;
+
+  /* "cython_helpers.pyx":253
+ *     COMPLEMENT_TABLE[65] = 84   # A -> T
+ *     COMPLEMENT_TABLE[67] = 71   # C -> G
+ *     COMPLEMENT_TABLE[71] = 67   # G -> C             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[84] = 65   # T -> A
+ *     COMPLEMENT_TABLE[85] = 65   # U -> A
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[71]) = 67;
+
+  /* "cython_helpers.pyx":254
+ *     COMPLEMENT_TABLE[67] = 71   # C -> G
+ *     COMPLEMENT_TABLE[71] = 67   # G -> C
+ *     COMPLEMENT_TABLE[84] = 65   # T -> A             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[85] = 65   # U -> A
+ *     COMPLEMENT_TABLE[82] = 89   # R -> Y
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[84]) = 65;
+
+  /* "cython_helpers.pyx":255
+ *     COMPLEMENT_TABLE[71] = 67   # G -> C
+ *     COMPLEMENT_TABLE[84] = 65   # T -> A
+ *     COMPLEMENT_TABLE[85] = 65   # U -> A             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[82] = 89   # R -> Y
+ *     COMPLEMENT_TABLE[89] = 82   # Y -> R
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[85]) = 65;
+
+  /* "cython_helpers.pyx":256
+ *     COMPLEMENT_TABLE[84] = 65   # T -> A
+ *     COMPLEMENT_TABLE[85] = 65   # U -> A
+ *     COMPLEMENT_TABLE[82] = 89   # R -> Y             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[89] = 82   # Y -> R
+ *     COMPLEMENT_TABLE[75] = 77   # K -> M
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[82]) = 89;
+
+  /* "cython_helpers.pyx":257
+ *     COMPLEMENT_TABLE[85] = 65   # U -> A
+ *     COMPLEMENT_TABLE[82] = 89   # R -> Y
+ *     COMPLEMENT_TABLE[89] = 82   # Y -> R             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[75] = 77   # K -> M
+ *     COMPLEMENT_TABLE[77] = 75   # M -> K
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[89]) = 82;
+
+  /* "cython_helpers.pyx":258
+ *     COMPLEMENT_TABLE[82] = 89   # R -> Y
+ *     COMPLEMENT_TABLE[89] = 82   # Y -> R
+ *     COMPLEMENT_TABLE[75] = 77   # K -> M             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[77] = 75   # M -> K
+ *     COMPLEMENT_TABLE[83] = 83   # S -> S
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[75]) = 77;
+
+  /* "cython_helpers.pyx":259
+ *     COMPLEMENT_TABLE[89] = 82   # Y -> R
+ *     COMPLEMENT_TABLE[75] = 77   # K -> M
+ *     COMPLEMENT_TABLE[77] = 75   # M -> K             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[83] = 83   # S -> S
+ *     COMPLEMENT_TABLE[87] = 87   # W -> W
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[77]) = 75;
+
+  /* "cython_helpers.pyx":260
+ *     COMPLEMENT_TABLE[75] = 77   # K -> M
+ *     COMPLEMENT_TABLE[77] = 75   # M -> K
+ *     COMPLEMENT_TABLE[83] = 83   # S -> S             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[87] = 87   # W -> W
+ *     COMPLEMENT_TABLE[66] = 86   # B -> V
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[83]) = 83;
+
+  /* "cython_helpers.pyx":261
+ *     COMPLEMENT_TABLE[77] = 75   # M -> K
+ *     COMPLEMENT_TABLE[83] = 83   # S -> S
+ *     COMPLEMENT_TABLE[87] = 87   # W -> W             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[66] = 86   # B -> V
+ *     COMPLEMENT_TABLE[68] = 72   # D -> H
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[87]) = 87;
+
+  /* "cython_helpers.pyx":262
+ *     COMPLEMENT_TABLE[83] = 83   # S -> S
+ *     COMPLEMENT_TABLE[87] = 87   # W -> W
+ *     COMPLEMENT_TABLE[66] = 86   # B -> V             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[68] = 72   # D -> H
+ *     COMPLEMENT_TABLE[72] = 68   # H -> D
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[66]) = 86;
+
+  /* "cython_helpers.pyx":263
+ *     COMPLEMENT_TABLE[87] = 87   # W -> W
+ *     COMPLEMENT_TABLE[66] = 86   # B -> V
+ *     COMPLEMENT_TABLE[68] = 72   # D -> H             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[72] = 68   # H -> D
+ *     COMPLEMENT_TABLE[86] = 66   # V -> B
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[68]) = 72;
+
+  /* "cython_helpers.pyx":264
+ *     COMPLEMENT_TABLE[66] = 86   # B -> V
+ *     COMPLEMENT_TABLE[68] = 72   # D -> H
+ *     COMPLEMENT_TABLE[72] = 68   # H -> D             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[86] = 66   # V -> B
+ *     COMPLEMENT_TABLE[78] = 78   # N -> N
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[72]) = 68;
+
+  /* "cython_helpers.pyx":265
+ *     COMPLEMENT_TABLE[68] = 72   # D -> H
+ *     COMPLEMENT_TABLE[72] = 68   # H -> D
+ *     COMPLEMENT_TABLE[86] = 66   # V -> B             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[78] = 78   # N -> N
+ * 
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[86]) = 66;
+
+  /* "cython_helpers.pyx":266
+ *     COMPLEMENT_TABLE[72] = 68   # H -> D
+ *     COMPLEMENT_TABLE[86] = 66   # V -> B
+ *     COMPLEMENT_TABLE[78] = 78   # N -> N             # <<<<<<<<<<<<<<
+ * 
+ *     COMPLEMENT_TABLE[97] = 116  # a -> t
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[78]) = 78;
+
+  /* "cython_helpers.pyx":268
+ *     COMPLEMENT_TABLE[78] = 78   # N -> N
+ * 
+ *     COMPLEMENT_TABLE[97] = 116  # a -> t             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[99] = 103  # c -> g
+ *     COMPLEMENT_TABLE[103] = 99  # g -> c
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[97]) = 0x74;
+
+  /* "cython_helpers.pyx":269
+ * 
+ *     COMPLEMENT_TABLE[97] = 116  # a -> t
+ *     COMPLEMENT_TABLE[99] = 103  # c -> g             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[103] = 99  # g -> c
+ *     COMPLEMENT_TABLE[116] = 97  # t -> a
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[99]) = 0x67;
+
+  /* "cython_helpers.pyx":270
+ *     COMPLEMENT_TABLE[97] = 116  # a -> t
+ *     COMPLEMENT_TABLE[99] = 103  # c -> g
+ *     COMPLEMENT_TABLE[103] = 99  # g -> c             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[116] = 97  # t -> a
+ *     COMPLEMENT_TABLE[117] = 97  # u -> a
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x67]) = 99;
+
+  /* "cython_helpers.pyx":271
+ *     COMPLEMENT_TABLE[99] = 103  # c -> g
+ *     COMPLEMENT_TABLE[103] = 99  # g -> c
+ *     COMPLEMENT_TABLE[116] = 97  # t -> a             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[117] = 97  # u -> a
+ *     COMPLEMENT_TABLE[114] = 121  # r -> y
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x74]) = 97;
+
+  /* "cython_helpers.pyx":272
+ *     COMPLEMENT_TABLE[103] = 99  # g -> c
+ *     COMPLEMENT_TABLE[116] = 97  # t -> a
+ *     COMPLEMENT_TABLE[117] = 97  # u -> a             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[114] = 121  # r -> y
+ *     COMPLEMENT_TABLE[121] = 114  # y -> r
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x75]) = 97;
+
+  /* "cython_helpers.pyx":273
+ *     COMPLEMENT_TABLE[116] = 97  # t -> a
+ *     COMPLEMENT_TABLE[117] = 97  # u -> a
+ *     COMPLEMENT_TABLE[114] = 121  # r -> y             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[121] = 114  # y -> r
+ *     COMPLEMENT_TABLE[107] = 109  # k -> m
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x72]) = 0x79;
+
+  /* "cython_helpers.pyx":274
+ *     COMPLEMENT_TABLE[117] = 97  # u -> a
+ *     COMPLEMENT_TABLE[114] = 121  # r -> y
+ *     COMPLEMENT_TABLE[121] = 114  # y -> r             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[107] = 109  # k -> m
+ *     COMPLEMENT_TABLE[109] = 107  # m -> k
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x79]) = 0x72;
+
+  /* "cython_helpers.pyx":275
+ *     COMPLEMENT_TABLE[114] = 121  # r -> y
+ *     COMPLEMENT_TABLE[121] = 114  # y -> r
+ *     COMPLEMENT_TABLE[107] = 109  # k -> m             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[109] = 107  # m -> k
+ *     COMPLEMENT_TABLE[115] = 115  # s -> s
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x6B]) = 0x6D;
+
+  /* "cython_helpers.pyx":276
+ *     COMPLEMENT_TABLE[121] = 114  # y -> r
+ *     COMPLEMENT_TABLE[107] = 109  # k -> m
+ *     COMPLEMENT_TABLE[109] = 107  # m -> k             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[115] = 115  # s -> s
+ *     COMPLEMENT_TABLE[119] = 119  # w -> w
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x6D]) = 0x6B;
+
+  /* "cython_helpers.pyx":277
+ *     COMPLEMENT_TABLE[107] = 109  # k -> m
+ *     COMPLEMENT_TABLE[109] = 107  # m -> k
+ *     COMPLEMENT_TABLE[115] = 115  # s -> s             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[119] = 119  # w -> w
+ *     COMPLEMENT_TABLE[98] = 118  # b -> v
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x73]) = 0x73;
+
+  /* "cython_helpers.pyx":278
+ *     COMPLEMENT_TABLE[109] = 107  # m -> k
+ *     COMPLEMENT_TABLE[115] = 115  # s -> s
+ *     COMPLEMENT_TABLE[119] = 119  # w -> w             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[98] = 118  # b -> v
+ *     COMPLEMENT_TABLE[100] = 104  # d -> h
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x77]) = 0x77;
+
+  /* "cython_helpers.pyx":279
+ *     COMPLEMENT_TABLE[115] = 115  # s -> s
+ *     COMPLEMENT_TABLE[119] = 119  # w -> w
+ *     COMPLEMENT_TABLE[98] = 118  # b -> v             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[100] = 104  # d -> h
+ *     COMPLEMENT_TABLE[104] = 100  # h -> d
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[98]) = 0x76;
+
+  /* "cython_helpers.pyx":280
+ *     COMPLEMENT_TABLE[119] = 119  # w -> w
+ *     COMPLEMENT_TABLE[98] = 118  # b -> v
+ *     COMPLEMENT_TABLE[100] = 104  # d -> h             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[104] = 100  # h -> d
+ *     COMPLEMENT_TABLE[118] = 98   # v -> b
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x64]) = 0x68;
+
+  /* "cython_helpers.pyx":281
+ *     COMPLEMENT_TABLE[98] = 118  # b -> v
+ *     COMPLEMENT_TABLE[100] = 104  # d -> h
+ *     COMPLEMENT_TABLE[104] = 100  # h -> d             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[118] = 98   # v -> b
+ *     COMPLEMENT_TABLE[110] = 110  # n -> n
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x68]) = 0x64;
+
+  /* "cython_helpers.pyx":282
+ *     COMPLEMENT_TABLE[100] = 104  # d -> h
+ *     COMPLEMENT_TABLE[104] = 100  # h -> d
+ *     COMPLEMENT_TABLE[118] = 98   # v -> b             # <<<<<<<<<<<<<<
+ *     COMPLEMENT_TABLE[110] = 110  # n -> n
+ * 
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x76]) = 98;
+
+  /* "cython_helpers.pyx":283
+ *     COMPLEMENT_TABLE[104] = 100  # h -> d
+ *     COMPLEMENT_TABLE[118] = 98   # v -> b
+ *     COMPLEMENT_TABLE[110] = 110  # n -> n             # <<<<<<<<<<<<<<
+ * 
+ * init_table()
+*/
+  (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[0x6E]) = 0x6E;
+
+  /* "cython_helpers.pyx":247
+ * cdef unsigned char COMPLEMENT_TABLE[256]
+ * 
+ * cdef void init_table():             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     for i in range(256):
+*/
+
+  /* function exit code */
+}
+
+/* "cython_helpers.pyx":288
+ * 
+ * 
+ * cdef inline int min_int(int a, int b):             # <<<<<<<<<<<<<<
+ *     return a if a < b else b
+ * 
+*/
+
+static CYTHON_INLINE int __pyx_f_14cython_helpers_min_int(int __pyx_v_a, int __pyx_v_b) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_t_2;
+
+  /* "cython_helpers.pyx":289
+ * 
+ * cdef inline int min_int(int a, int b):
+ *     return a if a < b else b             # <<<<<<<<<<<<<<
+ * 
+ * cdef inline int max_int(int a, int b):
+*/
+  __pyx_t_2 = (__pyx_v_a < __pyx_v_b);
+  if (__pyx_t_2) {
+    __pyx_t_1 = __pyx_v_a;
+  } else {
+    __pyx_t_1 = __pyx_v_b;
+  }
+  __pyx_r = __pyx_t_1;
+  goto __pyx_L0;
+
+  /* "cython_helpers.pyx":288
+ * 
+ * 
+ * cdef inline int min_int(int a, int b):             # <<<<<<<<<<<<<<
+ *     return a if a < b else b
+ * 
+*/
+
+  /* function exit code */
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "cython_helpers.pyx":291
+ *     return a if a < b else b
+ * 
+ * cdef inline int max_int(int a, int b):             # <<<<<<<<<<<<<<
+ *     return a if a > b else b
+ * 
+*/
+
+static CYTHON_INLINE int __pyx_f_14cython_helpers_max_int(int __pyx_v_a, int __pyx_v_b) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_t_2;
+
+  /* "cython_helpers.pyx":292
+ * 
+ * cdef inline int max_int(int a, int b):
+ *     return a if a > b else b             # <<<<<<<<<<<<<<
+ * 
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_a > __pyx_v_b);
+  if (__pyx_t_2) {
+    __pyx_t_1 = __pyx_v_a;
+  } else {
+    __pyx_t_1 = __pyx_v_b;
+  }
+  __pyx_r = __pyx_t_1;
+  goto __pyx_L0;
+
+  /* "cython_helpers.pyx":291
+ *     return a if a < b else b
+ * 
+ * cdef inline int max_int(int a, int b):             # <<<<<<<<<<<<<<
+ *     return a if a > b else b
+ * 
+*/
+
+  /* function exit code */
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "cython_helpers.pyx":295
+ * 
+ * 
+ * cpdef tuple find_longest_intrastrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+
+static PyObject *__pyx_pw_14cython_helpers_11find_longest_intrastrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+static PyObject *__pyx_f_14cython_helpers_find_longest_intrastrand_complement_cython(PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj, CYTHON_UNUSED int __pyx_skip_dispatch) {
+  Py_ssize_t __pyx_v_n;
+  char const *__pyx_v_seq;
+  int __pyx_v_max_len;
+  int __pyx_v_gap_max_len;
+  int __pyx_v_best_len;
+  Py_ssize_t __pyx_v_best_i;
+  Py_ssize_t __pyx_v_best_j;
+  Py_ssize_t __pyx_v_i;
+  Py_ssize_t __pyx_v_j;
+  int __pyx_v_length;
+  int __pyx_v_j_start;
+  int __pyx_v_j_end;
+  int __pyx_v_max_possible;
+  int __pyx_v_mismatches;
+  int __pyx_v_curr_best_len;
+  int __pyx_v_gap;
+  unsigned char __pyx_v_left_base;
+  unsigned char __pyx_v_right_base;
+  unsigned char __pyx_v_comp;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  char const *__pyx_t_1;
+  int __pyx_t_2;
+  PyObject *__pyx_t_3 = NULL;
+  PyObject *__pyx_t_4 = NULL;
+  size_t __pyx_t_5;
+  int __pyx_t_6;
+  Py_ssize_t __pyx_t_7;
+  Py_ssize_t __pyx_t_8;
+  Py_ssize_t __pyx_t_9;
+  int __pyx_t_10;
+  int __pyx_t_11;
+  Py_ssize_t __pyx_t_12;
+  long __pyx_t_13;
+  long __pyx_t_14;
+  int __pyx_t_15;
+  PyObject *__pyx_t_16 = NULL;
+  PyObject *__pyx_t_17 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("find_longest_intrastrand_complement_cython", 0);
+
+  /* "cython_helpers.pyx":304
+ * ):
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)             # <<<<<<<<<<<<<<
+ *     if seq is NULL:
+ *         raise ValueError("Failed to access sequence data.")
+*/
+  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_n)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 304, __pyx_L1_error)
+  __pyx_v_seq = __pyx_t_1;
+
+  /* "cython_helpers.pyx":305
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:             # <<<<<<<<<<<<<<
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_seq == NULL);
+  if (unlikely(__pyx_t_2)) {
+
+    /* "cython_helpers.pyx":306
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:
+ *         raise ValueError("Failed to access sequence data.")             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int max_len = -1
+*/
+    __pyx_t_4 = NULL;
+    __pyx_t_5 = 1;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_Failed_to_access_sequence_data};
+      __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 306, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __Pyx_Raise(__pyx_t_3, 0, 0, 0);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __PYX_ERR(0, 306, __pyx_L1_error)
+
+    /* "cython_helpers.pyx":305
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:             # <<<<<<<<<<<<<<
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":308
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+ *     cdef int max_len = -1             # <<<<<<<<<<<<<<
+ *     if max_len_obj is not None:
+ *         max_len = max_len_obj
+*/
+  __pyx_v_max_len = -1;
+
+  /* "cython_helpers.pyx":309
+ * 
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         max_len = max_len_obj
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_max_len_obj != Py_None);
+  if (__pyx_t_2) {
+
+    /* "cython_helpers.pyx":310
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:
+ *         max_len = max_len_obj             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int gap_max_len = -1
+*/
+    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_v_max_len_obj); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 310, __pyx_L1_error)
+    __pyx_v_max_len = __pyx_t_6;
+
+    /* "cython_helpers.pyx":309
+ * 
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         max_len = max_len_obj
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":312
+ *         max_len = max_len_obj
+ * 
+ *     cdef int gap_max_len = -1             # <<<<<<<<<<<<<<
+ *     if gap_max_len_obj is not None:
+ *         gap_max_len = gap_max_len_obj
+*/
+  __pyx_v_gap_max_len = -1;
+
+  /* "cython_helpers.pyx":313
+ * 
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         gap_max_len = gap_max_len_obj
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_gap_max_len_obj != Py_None);
+  if (__pyx_t_2) {
+
+    /* "cython_helpers.pyx":314
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:
+ *         gap_max_len = gap_max_len_obj             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int best_len = 0
+*/
+    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_v_gap_max_len_obj); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 314, __pyx_L1_error)
+    __pyx_v_gap_max_len = __pyx_t_6;
+
+    /* "cython_helpers.pyx":313
+ * 
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         gap_max_len = gap_max_len_obj
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":316
+ *         gap_max_len = gap_max_len_obj
+ * 
+ *     cdef int best_len = 0             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t best_i = -1
+ *     cdef Py_ssize_t best_j = -1
+*/
+  __pyx_v_best_len = 0;
+
+  /* "cython_helpers.pyx":317
+ * 
+ *     cdef int best_len = 0
+ *     cdef Py_ssize_t best_i = -1             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t best_j = -1
+ * 
+*/
+  __pyx_v_best_i = -1L;
+
+  /* "cython_helpers.pyx":318
+ *     cdef int best_len = 0
+ *     cdef Py_ssize_t best_i = -1
+ *     cdef Py_ssize_t best_j = -1             # <<<<<<<<<<<<<<
+ * 
+ *     cdef Py_ssize_t i, j
+*/
+  __pyx_v_best_j = -1L;
+
+  /* "cython_helpers.pyx":324
+ *     cdef unsigned char left_base, right_base, comp
+ * 
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):             # <<<<<<<<<<<<<<
+ *         j_start = i + 2 * max_int(min_len, best_len + 1) + gap_min_len - 1
+ *         j_end = n
+*/
+  __pyx_t_7 = (((__pyx_v_n - (2 * __pyx_v_min_len)) - __pyx_v_gap_min_len) + 1);
+  __pyx_t_8 = __pyx_t_7;
+  for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
+    __pyx_v_i = __pyx_t_9;
+
+    /* "cython_helpers.pyx":325
+ * 
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):
+ *         j_start = i + 2 * max_int(min_len, best_len + 1) + gap_min_len - 1             # <<<<<<<<<<<<<<
+ *         j_end = n
+ *         if max_len != -1 and gap_max_len != -1:
+*/
+    __pyx_t_6 = __pyx_f_14cython_helpers_max_int(__pyx_v_min_len, (__pyx_v_best_len + 1)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 325, __pyx_L1_error)
+    __pyx_v_j_start = (((__pyx_v_i + (2 * __pyx_t_6)) + __pyx_v_gap_min_len) - 1);
+
+    /* "cython_helpers.pyx":326
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):
+ *         j_start = i + 2 * max_int(min_len, best_len + 1) + gap_min_len - 1
+ *         j_end = n             # <<<<<<<<<<<<<<
+ *         if max_len != -1 and gap_max_len != -1:
+ *             j_end = min_int(j_end, i + 2 * max_len + gap_max_len)
+*/
+    __pyx_v_j_end = __pyx_v_n;
+
+    /* "cython_helpers.pyx":327
+ *         j_start = i + 2 * max_int(min_len, best_len + 1) + gap_min_len - 1
+ *         j_end = n
+ *         if max_len != -1 and gap_max_len != -1:             # <<<<<<<<<<<<<<
+ *             j_end = min_int(j_end, i + 2 * max_len + gap_max_len)
+ * 
+*/
+    __pyx_t_10 = (__pyx_v_max_len != -1L);
+    if (__pyx_t_10) {
+    } else {
+      __pyx_t_2 = __pyx_t_10;
+      goto __pyx_L9_bool_binop_done;
+    }
+    __pyx_t_10 = (__pyx_v_gap_max_len != -1L);
+    __pyx_t_2 = __pyx_t_10;
+    __pyx_L9_bool_binop_done:;
+    if (__pyx_t_2) {
+
+      /* "cython_helpers.pyx":328
+ *         j_end = n
+ *         if max_len != -1 and gap_max_len != -1:
+ *             j_end = min_int(j_end, i + 2 * max_len + gap_max_len)             # <<<<<<<<<<<<<<
+ * 
+ *         for j in range(j_start, j_end):
+*/
+      __pyx_t_6 = __pyx_f_14cython_helpers_min_int(__pyx_v_j_end, ((__pyx_v_i + (2 * __pyx_v_max_len)) + __pyx_v_gap_max_len)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 328, __pyx_L1_error)
+      __pyx_v_j_end = __pyx_t_6;
+
+      /* "cython_helpers.pyx":327
+ *         j_start = i + 2 * max_int(min_len, best_len + 1) + gap_min_len - 1
+ *         j_end = n
+ *         if max_len != -1 and gap_max_len != -1:             # <<<<<<<<<<<<<<
+ *             j_end = min_int(j_end, i + 2 * max_len + gap_max_len)
+ * 
+*/
+    }
+
+    /* "cython_helpers.pyx":330
+ *             j_end = min_int(j_end, i + 2 * max_len + gap_max_len)
+ * 
+ *         for j in range(j_start, j_end):             # <<<<<<<<<<<<<<
+ *             max_possible = (j - i + 1 - gap_min_len) // 2
+ *             if max_len != -1 and max_len < max_possible:
+*/
+    __pyx_t_6 = __pyx_v_j_end;
+    __pyx_t_11 = __pyx_t_6;
+    for (__pyx_t_12 = __pyx_v_j_start; __pyx_t_12 < __pyx_t_11; __pyx_t_12+=1) {
+      __pyx_v_j = __pyx_t_12;
+
+      /* "cython_helpers.pyx":331
+ * 
+ *         for j in range(j_start, j_end):
+ *             max_possible = (j - i + 1 - gap_min_len) // 2             # <<<<<<<<<<<<<<
+ *             if max_len != -1 and max_len < max_possible:
+ *                 max_possible = max_len
+*/
+      __pyx_v_max_possible = __Pyx_div_Py_ssize_t((((__pyx_v_j - __pyx_v_i) + 1) - __pyx_v_gap_min_len), 2, 1);
+
+      /* "cython_helpers.pyx":332
+ *         for j in range(j_start, j_end):
+ *             max_possible = (j - i + 1 - gap_min_len) // 2
+ *             if max_len != -1 and max_len < max_possible:             # <<<<<<<<<<<<<<
+ *                 max_possible = max_len
+ * 
+*/
+      __pyx_t_10 = (__pyx_v_max_len != -1L);
+      if (__pyx_t_10) {
+      } else {
+        __pyx_t_2 = __pyx_t_10;
+        goto __pyx_L14_bool_binop_done;
+      }
+      __pyx_t_10 = (__pyx_v_max_len < __pyx_v_max_possible);
+      __pyx_t_2 = __pyx_t_10;
+      __pyx_L14_bool_binop_done:;
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":333
+ *             max_possible = (j - i + 1 - gap_min_len) // 2
+ *             if max_len != -1 and max_len < max_possible:
+ *                 max_possible = max_len             # <<<<<<<<<<<<<<
+ * 
+ *             if max_possible <= best_len:
+*/
+        __pyx_v_max_possible = __pyx_v_max_len;
+
+        /* "cython_helpers.pyx":332
+ *         for j in range(j_start, j_end):
+ *             max_possible = (j - i + 1 - gap_min_len) // 2
+ *             if max_len != -1 and max_len < max_possible:             # <<<<<<<<<<<<<<
+ *                 max_possible = max_len
+ * 
+*/
+      }
+
+      /* "cython_helpers.pyx":335
+ *                 max_possible = max_len
+ * 
+ *             if max_possible <= best_len:             # <<<<<<<<<<<<<<
+ *                 continue
+ * 
+*/
+      __pyx_t_2 = (__pyx_v_max_possible <= __pyx_v_best_len);
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":336
+ * 
+ *             if max_possible <= best_len:
+ *                 continue             # <<<<<<<<<<<<<<
+ * 
+ *             mismatches = 0
+*/
+        goto __pyx_L11_continue;
+
+        /* "cython_helpers.pyx":335
+ *                 max_possible = max_len
+ * 
+ *             if max_possible <= best_len:             # <<<<<<<<<<<<<<
+ *                 continue
+ * 
+*/
+      }
+
+      /* "cython_helpers.pyx":338
+ *                 continue
+ * 
+ *             mismatches = 0             # <<<<<<<<<<<<<<
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):
+*/
+      __pyx_v_mismatches = 0;
+
+      /* "cython_helpers.pyx":339
+ * 
+ *             mismatches = 0
+ *             curr_best_len = 0             # <<<<<<<<<<<<<<
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]
+*/
+      __pyx_v_curr_best_len = 0;
+
+      /* "cython_helpers.pyx":340
+ *             mismatches = 0
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):             # <<<<<<<<<<<<<<
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j - length + 1]
+*/
+      __pyx_t_13 = (__pyx_v_max_possible + 1);
+      __pyx_t_14 = __pyx_t_13;
+      for (__pyx_t_15 = 1; __pyx_t_15 < __pyx_t_14; __pyx_t_15+=1) {
+        __pyx_v_length = __pyx_t_15;
+
+        /* "cython_helpers.pyx":341
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]             # <<<<<<<<<<<<<<
+ *                 right_base = <unsigned char>seq[j - length + 1]
+ *                 comp = COMPLEMENT_TABLE[right_base]
+*/
+        __pyx_v_left_base = ((unsigned char)(__pyx_v_seq[((__pyx_v_i + __pyx_v_length) - 1)]));
+
+        /* "cython_helpers.pyx":342
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j - length + 1]             # <<<<<<<<<<<<<<
+ *                 comp = COMPLEMENT_TABLE[right_base]
+ *                 if left_base != comp:
+*/
+        __pyx_v_right_base = ((unsigned char)(__pyx_v_seq[((__pyx_v_j - __pyx_v_length) + 1)]));
+
+        /* "cython_helpers.pyx":343
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j - length + 1]
+ *                 comp = COMPLEMENT_TABLE[right_base]             # <<<<<<<<<<<<<<
+ *                 if left_base != comp:
+ *                     mismatches += 1
+*/
+        __pyx_v_comp = (__pyx_v_14cython_helpers_COMPLEMENT_TABLE[__pyx_v_right_base]);
+
+        /* "cython_helpers.pyx":344
+ *                 right_base = <unsigned char>seq[j - length + 1]
+ *                 comp = COMPLEMENT_TABLE[right_base]
+ *                 if left_base != comp:             # <<<<<<<<<<<<<<
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+*/
+        __pyx_t_2 = (__pyx_v_left_base != __pyx_v_comp);
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":345
+ *                 comp = COMPLEMENT_TABLE[right_base]
+ *                 if left_base != comp:
+ *                     mismatches += 1             # <<<<<<<<<<<<<<
+ *                 if mismatches > allowed_mismatches:
+ *                     break
+*/
+          __pyx_v_mismatches = (__pyx_v_mismatches + 1);
+
+          /* "cython_helpers.pyx":344
+ *                 right_base = <unsigned char>seq[j - length + 1]
+ *                 comp = COMPLEMENT_TABLE[right_base]
+ *                 if left_base != comp:             # <<<<<<<<<<<<<<
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+*/
+        }
+
+        /* "cython_helpers.pyx":346
+ *                 if left_base != comp:
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:             # <<<<<<<<<<<<<<
+ *                     break
+ * 
+*/
+        __pyx_t_2 = (__pyx_v_mismatches > __pyx_v_allowed_mismatches);
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":347
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+ *                     break             # <<<<<<<<<<<<<<
+ * 
+ *                 gap = j - i - 2 * length + 1
+*/
+          goto __pyx_L18_break;
+
+          /* "cython_helpers.pyx":346
+ *                 if left_base != comp:
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:             # <<<<<<<<<<<<<<
+ *                     break
+ * 
+*/
+        }
+
+        /* "cython_helpers.pyx":349
+ *                     break
+ * 
+ *                 gap = j - i - 2 * length + 1             # <<<<<<<<<<<<<<
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):
+ *                     curr_best_len = length
+*/
+        __pyx_v_gap = (((__pyx_v_j - __pyx_v_i) - (2 * __pyx_v_length)) + 1);
+
+        /* "cython_helpers.pyx":350
+ * 
+ *                 gap = j - i - 2 * length + 1
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):             # <<<<<<<<<<<<<<
+ *                     curr_best_len = length
+ * 
+*/
+        __pyx_t_10 = (__pyx_v_gap >= __pyx_v_gap_min_len);
+        if (__pyx_t_10) {
+        } else {
+          __pyx_t_2 = __pyx_t_10;
+          goto __pyx_L22_bool_binop_done;
+        }
+        __pyx_t_10 = (__pyx_v_gap_max_len == -1L);
+        if (!__pyx_t_10) {
+        } else {
+          __pyx_t_2 = __pyx_t_10;
+          goto __pyx_L22_bool_binop_done;
+        }
+        __pyx_t_10 = (__pyx_v_gap <= __pyx_v_gap_max_len);
+        __pyx_t_2 = __pyx_t_10;
+        __pyx_L22_bool_binop_done:;
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":351
+ *                 gap = j - i - 2 * length + 1
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):
+ *                     curr_best_len = length             # <<<<<<<<<<<<<<
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+*/
+          __pyx_v_curr_best_len = __pyx_v_length;
+
+          /* "cython_helpers.pyx":350
+ * 
+ *                 gap = j - i - 2 * length + 1
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):             # <<<<<<<<<<<<<<
+ *                     curr_best_len = length
+ * 
+*/
+        }
+      }
+      __pyx_L18_break:;
+
+      /* "cython_helpers.pyx":353
+ *                     curr_best_len = length
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:             # <<<<<<<<<<<<<<
+ *                 best_len = curr_best_len
+ *                 best_i = i
+*/
+      __pyx_t_10 = (__pyx_v_curr_best_len >= __pyx_v_min_len);
+      if (__pyx_t_10) {
+      } else {
+        __pyx_t_2 = __pyx_t_10;
+        goto __pyx_L26_bool_binop_done;
+      }
+      __pyx_t_10 = (__pyx_v_curr_best_len > __pyx_v_best_len);
+      __pyx_t_2 = __pyx_t_10;
+      __pyx_L26_bool_binop_done:;
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":354
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+ *                 best_len = curr_best_len             # <<<<<<<<<<<<<<
+ *                 best_i = i
+ *                 best_j = j
+*/
+        __pyx_v_best_len = __pyx_v_curr_best_len;
+
+        /* "cython_helpers.pyx":355
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+ *                 best_len = curr_best_len
+ *                 best_i = i             # <<<<<<<<<<<<<<
+ *                 best_j = j
+ * 
+*/
+        __pyx_v_best_i = __pyx_v_i;
+
+        /* "cython_helpers.pyx":356
+ *                 best_len = curr_best_len
+ *                 best_i = i
+ *                 best_j = j             # <<<<<<<<<<<<<<
+ * 
+ *     return best_i, best_j, best_len
+*/
+        __pyx_v_best_j = __pyx_v_j;
+
+        /* "cython_helpers.pyx":353
+ *                     curr_best_len = length
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:             # <<<<<<<<<<<<<<
+ *                 best_len = curr_best_len
+ *                 best_i = i
+*/
+      }
+      __pyx_L11_continue:;
+    }
+  }
+
+  /* "cython_helpers.pyx":358
+ *                 best_j = j
+ * 
+ *     return best_i, best_j, best_len             # <<<<<<<<<<<<<<
+ * 
+ * 
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_3 = PyLong_FromSsize_t(__pyx_v_best_i); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 358, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = PyLong_FromSsize_t(__pyx_v_best_j); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 358, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_16 = __Pyx_PyLong_From_int(__pyx_v_best_len); if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 358, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_16);
+  __pyx_t_17 = PyTuple_New(3); if (unlikely(!__pyx_t_17)) __PYX_ERR(0, 358, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_17);
+  __Pyx_GIVEREF(__pyx_t_3);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 0, __pyx_t_3) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_4);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 1, __pyx_t_4) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_16);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 2, __pyx_t_16) != (0)) __PYX_ERR(0, 358, __pyx_L1_error);
+  __pyx_t_3 = 0;
+  __pyx_t_4 = 0;
+  __pyx_t_16 = 0;
+  __pyx_r = ((PyObject*)__pyx_t_17);
+  __pyx_t_17 = 0;
+  goto __pyx_L0;
+
+  /* "cython_helpers.pyx":295
+ * 
+ * 
+ * cpdef tuple find_longest_intrastrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_16);
+  __Pyx_XDECREF(__pyx_t_17);
+  __Pyx_AddTraceback("cython_helpers.find_longest_intrastrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static PyObject *__pyx_pw_14cython_helpers_11find_longest_intrastrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+static PyMethodDef __pyx_mdef_14cython_helpers_11find_longest_intrastrand_complement_cython = {"find_longest_intrastrand_complement_cython", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_14cython_helpers_11find_longest_intrastrand_complement_cython, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_14cython_helpers_11find_longest_intrastrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+) {
+  PyObject *__pyx_v_sequence = 0;
+  int __pyx_v_min_len;
+  PyObject *__pyx_v_max_len_obj = 0;
+  int __pyx_v_allowed_mismatches;
+  int __pyx_v_gap_min_len;
+  PyObject *__pyx_v_gap_max_len_obj = 0;
+  #if !CYTHON_METH_FASTCALL
+  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
+  #endif
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject* values[6] = {0,0,0,0,0,0};
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("find_longest_intrastrand_complement_cython (wrapper)", 0);
+  #if !CYTHON_METH_FASTCALL
+  #if CYTHON_ASSUME_SAFE_SIZE
+  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
+  #else
+  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
+  #endif
+  #endif
+  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
+  {
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_sequence,&__pyx_mstate_global->__pyx_n_u_min_len,&__pyx_mstate_global->__pyx_n_u_max_len_obj,&__pyx_mstate_global->__pyx_n_u_allowed_mismatches,&__pyx_mstate_global->__pyx_n_u_gap_min_len,&__pyx_mstate_global->__pyx_n_u_gap_max_len_obj,0};
+    const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 295, __pyx_L3_error)
+    if (__pyx_kwds_len > 0) {
+      switch (__pyx_nargs) {
+        case  6:
+        values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  5:
+        values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  4:
+        values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  3:
+        values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  1:
+        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 295, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      const Py_ssize_t kwd_pos_args = __pyx_nargs;
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "find_longest_intrastrand_complement_cython", 0) < (0)) __PYX_ERR(0, 295, __pyx_L3_error)
+      for (Py_ssize_t i = __pyx_nargs; i < 6; i++) {
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("find_longest_intrastrand_complement_cython", 1, 6, 6, i); __PYX_ERR(0, 295, __pyx_L3_error) }
+      }
+    } else if (unlikely(__pyx_nargs != 6)) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 295, __pyx_L3_error)
+      values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 295, __pyx_L3_error)
+      values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 295, __pyx_L3_error)
+      values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 295, __pyx_L3_error)
+      values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 295, __pyx_L3_error)
+      values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 295, __pyx_L3_error)
+    }
+    __pyx_v_sequence = ((PyObject*)values[0]);
+    __pyx_v_min_len = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_min_len == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 297, __pyx_L3_error)
+    __pyx_v_max_len_obj = values[2];
+    __pyx_v_allowed_mismatches = __Pyx_PyLong_As_int(values[3]); if (unlikely((__pyx_v_allowed_mismatches == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 299, __pyx_L3_error)
+    __pyx_v_gap_min_len = __Pyx_PyLong_As_int(values[4]); if (unlikely((__pyx_v_gap_min_len == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 300, __pyx_L3_error)
+    __pyx_v_gap_max_len_obj = values[5];
+  }
+  goto __pyx_L6_skip;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("find_longest_intrastrand_complement_cython", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 295, __pyx_L3_error)
+  __pyx_L6_skip:;
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L3_error:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_AddTraceback("cython_helpers.find_longest_intrastrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_sequence), (&PyUnicode_Type), 1, "sequence", 1))) __PYX_ERR(0, 296, __pyx_L1_error)
+  __pyx_r = __pyx_pf_14cython_helpers_10find_longest_intrastrand_complement_cython(__pyx_self, __pyx_v_sequence, __pyx_v_min_len, __pyx_v_max_len_obj, __pyx_v_allowed_mismatches, __pyx_v_gap_min_len, __pyx_v_gap_max_len_obj);
+
+  /* function exit code */
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __pyx_r = NULL;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  goto __pyx_L7_cleaned_up;
+  __pyx_L0:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __pyx_L7_cleaned_up:;
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_14cython_helpers_10find_longest_intrastrand_complement_cython(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("find_longest_intrastrand_complement_cython", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __pyx_f_14cython_helpers_find_longest_intrastrand_complement_cython(__pyx_v_sequence, __pyx_v_min_len, __pyx_v_max_len_obj, __pyx_v_allowed_mismatches, __pyx_v_gap_min_len, __pyx_v_gap_max_len_obj, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 295, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("cython_helpers.find_longest_intrastrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "cython_helpers.pyx":361
+ * 
+ * 
+ * cpdef tuple find_longest_interstrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+
+static PyObject *__pyx_pw_14cython_helpers_13find_longest_interstrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+static PyObject *__pyx_f_14cython_helpers_find_longest_interstrand_complement_cython(PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj, CYTHON_UNUSED int __pyx_skip_dispatch) {
+  Py_ssize_t __pyx_v_n;
+  char const *__pyx_v_seq;
+  int __pyx_v_max_len;
+  int __pyx_v_gap_max_len;
+  int __pyx_v_best_len;
+  Py_ssize_t __pyx_v_best_i;
+  Py_ssize_t __pyx_v_best_j;
+  Py_ssize_t __pyx_v_i;
+  Py_ssize_t __pyx_v_j;
+  int __pyx_v_length;
+  int __pyx_v_j_start;
+  int __pyx_v_j_end;
+  int __pyx_v_max_possible;
+  int __pyx_v_mismatches;
+  int __pyx_v_curr_best_len;
+  int __pyx_v_gap;
+  unsigned char __pyx_v_left_base;
+  unsigned char __pyx_v_right_base;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  char const *__pyx_t_1;
+  int __pyx_t_2;
+  PyObject *__pyx_t_3 = NULL;
+  PyObject *__pyx_t_4 = NULL;
+  size_t __pyx_t_5;
+  int __pyx_t_6;
+  Py_ssize_t __pyx_t_7;
+  Py_ssize_t __pyx_t_8;
+  Py_ssize_t __pyx_t_9;
+  int __pyx_t_10;
+  Py_ssize_t __pyx_t_11;
+  int __pyx_t_12;
+  int __pyx_t_13;
+  long __pyx_t_14;
+  long __pyx_t_15;
+  PyObject *__pyx_t_16 = NULL;
+  PyObject *__pyx_t_17 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("find_longest_interstrand_complement_cython", 0);
+
+  /* "cython_helpers.pyx":370
+ * ):
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)             # <<<<<<<<<<<<<<
+ *     if seq is NULL:
+ *         raise ValueError("Failed to access sequence data.")
+*/
+  __pyx_t_1 = PyUnicode_AsUTF8AndSize(__pyx_v_sequence, (&__pyx_v_n)); if (unlikely(__pyx_t_1 == ((void *)NULL))) __PYX_ERR(0, 370, __pyx_L1_error)
+  __pyx_v_seq = __pyx_t_1;
+
+  /* "cython_helpers.pyx":371
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:             # <<<<<<<<<<<<<<
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_seq == NULL);
+  if (unlikely(__pyx_t_2)) {
+
+    /* "cython_helpers.pyx":372
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:
+ *         raise ValueError("Failed to access sequence data.")             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int max_len = -1
+*/
+    __pyx_t_4 = NULL;
+    __pyx_t_5 = 1;
+    {
+      PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_mstate_global->__pyx_kp_u_Failed_to_access_sequence_data};
+      __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 372, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+    }
+    __Pyx_Raise(__pyx_t_3, 0, 0, 0);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __PYX_ERR(0, 372, __pyx_L1_error)
+
+    /* "cython_helpers.pyx":371
+ *     cdef Py_ssize_t n
+ *     cdef const char* seq = PyUnicode_AsUTF8AndSize(sequence, &n)
+ *     if seq is NULL:             # <<<<<<<<<<<<<<
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":374
+ *         raise ValueError("Failed to access sequence data.")
+ * 
+ *     cdef int max_len = -1             # <<<<<<<<<<<<<<
+ *     if max_len_obj is not None:
+ *         max_len = max_len_obj
+*/
+  __pyx_v_max_len = -1;
+
+  /* "cython_helpers.pyx":375
+ * 
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         max_len = max_len_obj
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_max_len_obj != Py_None);
+  if (__pyx_t_2) {
+
+    /* "cython_helpers.pyx":376
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:
+ *         max_len = max_len_obj             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int gap_max_len = -1
+*/
+    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_v_max_len_obj); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 376, __pyx_L1_error)
+    __pyx_v_max_len = __pyx_t_6;
+
+    /* "cython_helpers.pyx":375
+ * 
+ *     cdef int max_len = -1
+ *     if max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         max_len = max_len_obj
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":378
+ *         max_len = max_len_obj
+ * 
+ *     cdef int gap_max_len = -1             # <<<<<<<<<<<<<<
+ *     if gap_max_len_obj is not None:
+ *         gap_max_len = gap_max_len_obj
+*/
+  __pyx_v_gap_max_len = -1;
+
+  /* "cython_helpers.pyx":379
+ * 
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         gap_max_len = gap_max_len_obj
+ * 
+*/
+  __pyx_t_2 = (__pyx_v_gap_max_len_obj != Py_None);
+  if (__pyx_t_2) {
+
+    /* "cython_helpers.pyx":380
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:
+ *         gap_max_len = gap_max_len_obj             # <<<<<<<<<<<<<<
+ * 
+ *     cdef int best_len = 0
+*/
+    __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_v_gap_max_len_obj); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 380, __pyx_L1_error)
+    __pyx_v_gap_max_len = __pyx_t_6;
+
+    /* "cython_helpers.pyx":379
+ * 
+ *     cdef int gap_max_len = -1
+ *     if gap_max_len_obj is not None:             # <<<<<<<<<<<<<<
+ *         gap_max_len = gap_max_len_obj
+ * 
+*/
+  }
+
+  /* "cython_helpers.pyx":382
+ *         gap_max_len = gap_max_len_obj
+ * 
+ *     cdef int best_len = 0             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t best_i = -1
+ *     cdef Py_ssize_t best_j = -1
+*/
+  __pyx_v_best_len = 0;
+
+  /* "cython_helpers.pyx":383
+ * 
+ *     cdef int best_len = 0
+ *     cdef Py_ssize_t best_i = -1             # <<<<<<<<<<<<<<
+ *     cdef Py_ssize_t best_j = -1
+ * 
+*/
+  __pyx_v_best_i = -1L;
+
+  /* "cython_helpers.pyx":384
+ *     cdef int best_len = 0
+ *     cdef Py_ssize_t best_i = -1
+ *     cdef Py_ssize_t best_j = -1             # <<<<<<<<<<<<<<
+ * 
+ *     cdef Py_ssize_t i, j
+*/
+  __pyx_v_best_j = -1L;
+
+  /* "cython_helpers.pyx":390
+ *     cdef unsigned char left_base, right_base
+ * 
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):             # <<<<<<<<<<<<<<
+ *         j_start = i + max_int(min_len, best_len + 1) + gap_min_len
+ *         j_end = n - max_int(min_len, best_len + 1) + 1
+*/
+  __pyx_t_7 = (((__pyx_v_n - (2 * __pyx_v_min_len)) - __pyx_v_gap_min_len) + 1);
+  __pyx_t_8 = __pyx_t_7;
+  for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
+    __pyx_v_i = __pyx_t_9;
+
+    /* "cython_helpers.pyx":391
+ * 
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):
+ *         j_start = i + max_int(min_len, best_len + 1) + gap_min_len             # <<<<<<<<<<<<<<
+ *         j_end = n - max_int(min_len, best_len + 1) + 1
+ * 
+*/
+    __pyx_t_6 = __pyx_f_14cython_helpers_max_int(__pyx_v_min_len, (__pyx_v_best_len + 1)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 391, __pyx_L1_error)
+    __pyx_v_j_start = ((__pyx_v_i + __pyx_t_6) + __pyx_v_gap_min_len);
+
+    /* "cython_helpers.pyx":392
+ *     for i in range(n - 2 * min_len - gap_min_len + 1):
+ *         j_start = i + max_int(min_len, best_len + 1) + gap_min_len
+ *         j_end = n - max_int(min_len, best_len + 1) + 1             # <<<<<<<<<<<<<<
+ * 
+ *         if gap_max_len != -1:
+*/
+    __pyx_t_6 = __pyx_f_14cython_helpers_max_int(__pyx_v_min_len, (__pyx_v_best_len + 1)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 392, __pyx_L1_error)
+    __pyx_v_j_end = ((__pyx_v_n - __pyx_t_6) + 1);
+
+    /* "cython_helpers.pyx":394
+ *         j_end = n - max_int(min_len, best_len + 1) + 1
+ * 
+ *         if gap_max_len != -1:             # <<<<<<<<<<<<<<
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)
+ *             if max_len != -1:
+*/
+    __pyx_t_2 = (__pyx_v_gap_max_len != -1L);
+    if (__pyx_t_2) {
+
+      /* "cython_helpers.pyx":395
+ * 
+ *         if gap_max_len != -1:
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)             # <<<<<<<<<<<<<<
+ *             if max_len != -1:
+ *                 j_end = min_int(j_end, i + max_len + gap_max_len + 1)
+*/
+      __pyx_t_6 = __pyx_f_14cython_helpers_min_int(__pyx_v_j_end, (__Pyx_div_Py_ssize_t(((__pyx_v_n + __pyx_v_i) + __pyx_v_gap_max_len), 2, 1) + 1)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 395, __pyx_L1_error)
+      __pyx_v_j_end = __pyx_t_6;
+
+      /* "cython_helpers.pyx":396
+ *         if gap_max_len != -1:
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)
+ *             if max_len != -1:             # <<<<<<<<<<<<<<
+ *                 j_end = min_int(j_end, i + max_len + gap_max_len + 1)
+ * 
+*/
+      __pyx_t_2 = (__pyx_v_max_len != -1L);
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":397
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)
+ *             if max_len != -1:
+ *                 j_end = min_int(j_end, i + max_len + gap_max_len + 1)             # <<<<<<<<<<<<<<
+ * 
+ *         for j in range(j_start, j_end):
+*/
+        __pyx_t_6 = __pyx_f_14cython_helpers_min_int(__pyx_v_j_end, (((__pyx_v_i + __pyx_v_max_len) + __pyx_v_gap_max_len) + 1)); if (unlikely(__pyx_t_6 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 397, __pyx_L1_error)
+        __pyx_v_j_end = __pyx_t_6;
+
+        /* "cython_helpers.pyx":396
+ *         if gap_max_len != -1:
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)
+ *             if max_len != -1:             # <<<<<<<<<<<<<<
+ *                 j_end = min_int(j_end, i + max_len + gap_max_len + 1)
+ * 
+*/
+      }
+
+      /* "cython_helpers.pyx":394
+ *         j_end = n - max_int(min_len, best_len + 1) + 1
+ * 
+ *         if gap_max_len != -1:             # <<<<<<<<<<<<<<
+ *             j_end = min_int(j_end, (n + i + gap_max_len) // 2 + 1)
+ *             if max_len != -1:
+*/
+    }
+
+    /* "cython_helpers.pyx":399
+ *                 j_end = min_int(j_end, i + max_len + gap_max_len + 1)
+ * 
+ *         for j in range(j_start, j_end):             # <<<<<<<<<<<<<<
+ *             max_possible = min_int(j - i - gap_min_len, n - j)
+ *             if max_len != -1 and max_len < max_possible:
+*/
+    __pyx_t_6 = __pyx_v_j_end;
+    __pyx_t_10 = __pyx_t_6;
+    for (__pyx_t_11 = __pyx_v_j_start; __pyx_t_11 < __pyx_t_10; __pyx_t_11+=1) {
+      __pyx_v_j = __pyx_t_11;
+
+      /* "cython_helpers.pyx":400
+ * 
+ *         for j in range(j_start, j_end):
+ *             max_possible = min_int(j - i - gap_min_len, n - j)             # <<<<<<<<<<<<<<
+ *             if max_len != -1 and max_len < max_possible:
+ *                 max_possible = max_len
+*/
+      __pyx_t_12 = __pyx_f_14cython_helpers_min_int(((__pyx_v_j - __pyx_v_i) - __pyx_v_gap_min_len), (__pyx_v_n - __pyx_v_j)); if (unlikely(__pyx_t_12 == ((int)-1) && PyErr_Occurred())) __PYX_ERR(0, 400, __pyx_L1_error)
+      __pyx_v_max_possible = __pyx_t_12;
+
+      /* "cython_helpers.pyx":401
+ *         for j in range(j_start, j_end):
+ *             max_possible = min_int(j - i - gap_min_len, n - j)
+ *             if max_len != -1 and max_len < max_possible:             # <<<<<<<<<<<<<<
+ *                 max_possible = max_len
+ * 
+*/
+      __pyx_t_13 = (__pyx_v_max_len != -1L);
+      if (__pyx_t_13) {
+      } else {
+        __pyx_t_2 = __pyx_t_13;
+        goto __pyx_L13_bool_binop_done;
+      }
+      __pyx_t_13 = (__pyx_v_max_len < __pyx_v_max_possible);
+      __pyx_t_2 = __pyx_t_13;
+      __pyx_L13_bool_binop_done:;
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":402
+ *             max_possible = min_int(j - i - gap_min_len, n - j)
+ *             if max_len != -1 and max_len < max_possible:
+ *                 max_possible = max_len             # <<<<<<<<<<<<<<
+ * 
+ *             if max_possible <= best_len:
+*/
+        __pyx_v_max_possible = __pyx_v_max_len;
+
+        /* "cython_helpers.pyx":401
+ *         for j in range(j_start, j_end):
+ *             max_possible = min_int(j - i - gap_min_len, n - j)
+ *             if max_len != -1 and max_len < max_possible:             # <<<<<<<<<<<<<<
+ *                 max_possible = max_len
+ * 
+*/
+      }
+
+      /* "cython_helpers.pyx":404
+ *                 max_possible = max_len
+ * 
+ *             if max_possible <= best_len:             # <<<<<<<<<<<<<<
+ *                 continue
+ * 
+*/
+      __pyx_t_2 = (__pyx_v_max_possible <= __pyx_v_best_len);
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":405
+ * 
+ *             if max_possible <= best_len:
+ *                 continue             # <<<<<<<<<<<<<<
+ * 
+ *             mismatches = 0
+*/
+        goto __pyx_L10_continue;
+
+        /* "cython_helpers.pyx":404
+ *                 max_possible = max_len
+ * 
+ *             if max_possible <= best_len:             # <<<<<<<<<<<<<<
+ *                 continue
+ * 
+*/
+      }
+
+      /* "cython_helpers.pyx":407
+ *                 continue
+ * 
+ *             mismatches = 0             # <<<<<<<<<<<<<<
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):
+*/
+      __pyx_v_mismatches = 0;
+
+      /* "cython_helpers.pyx":408
+ * 
+ *             mismatches = 0
+ *             curr_best_len = 0             # <<<<<<<<<<<<<<
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]
+*/
+      __pyx_v_curr_best_len = 0;
+
+      /* "cython_helpers.pyx":409
+ *             mismatches = 0
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):             # <<<<<<<<<<<<<<
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j + length - 1]
+*/
+      __pyx_t_14 = (__pyx_v_max_possible + 1);
+      __pyx_t_15 = __pyx_t_14;
+      for (__pyx_t_12 = 1; __pyx_t_12 < __pyx_t_15; __pyx_t_12+=1) {
+        __pyx_v_length = __pyx_t_12;
+
+        /* "cython_helpers.pyx":410
+ *             curr_best_len = 0
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]             # <<<<<<<<<<<<<<
+ *                 right_base = <unsigned char>seq[j + length - 1]
+ *                 if left_base != right_base:
+*/
+        __pyx_v_left_base = ((unsigned char)(__pyx_v_seq[((__pyx_v_i + __pyx_v_length) - 1)]));
+
+        /* "cython_helpers.pyx":411
+ *             for length in range(1, max_possible + 1):
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j + length - 1]             # <<<<<<<<<<<<<<
+ *                 if left_base != right_base:
+ *                     mismatches += 1
+*/
+        __pyx_v_right_base = ((unsigned char)(__pyx_v_seq[((__pyx_v_j + __pyx_v_length) - 1)]));
+
+        /* "cython_helpers.pyx":412
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j + length - 1]
+ *                 if left_base != right_base:             # <<<<<<<<<<<<<<
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+*/
+        __pyx_t_2 = (__pyx_v_left_base != __pyx_v_right_base);
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":413
+ *                 right_base = <unsigned char>seq[j + length - 1]
+ *                 if left_base != right_base:
+ *                     mismatches += 1             # <<<<<<<<<<<<<<
+ *                 if mismatches > allowed_mismatches:
+ *                     break
+*/
+          __pyx_v_mismatches = (__pyx_v_mismatches + 1);
+
+          /* "cython_helpers.pyx":412
+ *                 left_base = <unsigned char>seq[i + length - 1]
+ *                 right_base = <unsigned char>seq[j + length - 1]
+ *                 if left_base != right_base:             # <<<<<<<<<<<<<<
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+*/
+        }
+
+        /* "cython_helpers.pyx":414
+ *                 if left_base != right_base:
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:             # <<<<<<<<<<<<<<
+ *                     break
+ * 
+*/
+        __pyx_t_2 = (__pyx_v_mismatches > __pyx_v_allowed_mismatches);
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":415
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:
+ *                     break             # <<<<<<<<<<<<<<
+ * 
+ *                 gap = j - i - length
+*/
+          goto __pyx_L17_break;
+
+          /* "cython_helpers.pyx":414
+ *                 if left_base != right_base:
+ *                     mismatches += 1
+ *                 if mismatches > allowed_mismatches:             # <<<<<<<<<<<<<<
+ *                     break
+ * 
+*/
+        }
+
+        /* "cython_helpers.pyx":417
+ *                     break
+ * 
+ *                 gap = j - i - length             # <<<<<<<<<<<<<<
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):
+ *                     curr_best_len = length
+*/
+        __pyx_v_gap = ((__pyx_v_j - __pyx_v_i) - __pyx_v_length);
+
+        /* "cython_helpers.pyx":418
+ * 
+ *                 gap = j - i - length
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):             # <<<<<<<<<<<<<<
+ *                     curr_best_len = length
+ * 
+*/
+        __pyx_t_13 = (__pyx_v_gap >= __pyx_v_gap_min_len);
+        if (__pyx_t_13) {
+        } else {
+          __pyx_t_2 = __pyx_t_13;
+          goto __pyx_L21_bool_binop_done;
+        }
+        __pyx_t_13 = (__pyx_v_gap_max_len == -1L);
+        if (!__pyx_t_13) {
+        } else {
+          __pyx_t_2 = __pyx_t_13;
+          goto __pyx_L21_bool_binop_done;
+        }
+        __pyx_t_13 = (__pyx_v_gap <= __pyx_v_gap_max_len);
+        __pyx_t_2 = __pyx_t_13;
+        __pyx_L21_bool_binop_done:;
+        if (__pyx_t_2) {
+
+          /* "cython_helpers.pyx":419
+ *                 gap = j - i - length
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):
+ *                     curr_best_len = length             # <<<<<<<<<<<<<<
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+*/
+          __pyx_v_curr_best_len = __pyx_v_length;
+
+          /* "cython_helpers.pyx":418
+ * 
+ *                 gap = j - i - length
+ *                 if gap >= gap_min_len and (gap_max_len == -1 or gap <= gap_max_len):             # <<<<<<<<<<<<<<
+ *                     curr_best_len = length
+ * 
+*/
+        }
+      }
+      __pyx_L17_break:;
+
+      /* "cython_helpers.pyx":421
+ *                     curr_best_len = length
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:             # <<<<<<<<<<<<<<
+ *                 best_len = curr_best_len
+ *                 best_i = i
+*/
+      __pyx_t_13 = (__pyx_v_curr_best_len >= __pyx_v_min_len);
+      if (__pyx_t_13) {
+      } else {
+        __pyx_t_2 = __pyx_t_13;
+        goto __pyx_L25_bool_binop_done;
+      }
+      __pyx_t_13 = (__pyx_v_curr_best_len > __pyx_v_best_len);
+      __pyx_t_2 = __pyx_t_13;
+      __pyx_L25_bool_binop_done:;
+      if (__pyx_t_2) {
+
+        /* "cython_helpers.pyx":422
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+ *                 best_len = curr_best_len             # <<<<<<<<<<<<<<
+ *                 best_i = i
+ *                 best_j = j
+*/
+        __pyx_v_best_len = __pyx_v_curr_best_len;
+
+        /* "cython_helpers.pyx":423
+ *             if curr_best_len >= min_len and curr_best_len > best_len:
+ *                 best_len = curr_best_len
+ *                 best_i = i             # <<<<<<<<<<<<<<
+ *                 best_j = j
+ * 
+*/
+        __pyx_v_best_i = __pyx_v_i;
+
+        /* "cython_helpers.pyx":424
+ *                 best_len = curr_best_len
+ *                 best_i = i
+ *                 best_j = j             # <<<<<<<<<<<<<<
+ * 
+ *     return best_i, best_j, best_len
+*/
+        __pyx_v_best_j = __pyx_v_j;
+
+        /* "cython_helpers.pyx":421
+ *                     curr_best_len = length
+ * 
+ *             if curr_best_len >= min_len and curr_best_len > best_len:             # <<<<<<<<<<<<<<
+ *                 best_len = curr_best_len
+ *                 best_i = i
+*/
+      }
+      __pyx_L10_continue:;
+    }
+  }
+
+  /* "cython_helpers.pyx":426
+ *                 best_j = j
+ * 
+ *     return best_i, best_j, best_len             # <<<<<<<<<<<<<<
+ * 
+*/
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_3 = PyLong_FromSsize_t(__pyx_v_best_i); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 426, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = PyLong_FromSsize_t(__pyx_v_best_j); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 426, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_16 = __Pyx_PyLong_From_int(__pyx_v_best_len); if (unlikely(!__pyx_t_16)) __PYX_ERR(0, 426, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_16);
+  __pyx_t_17 = PyTuple_New(3); if (unlikely(!__pyx_t_17)) __PYX_ERR(0, 426, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_17);
+  __Pyx_GIVEREF(__pyx_t_3);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 0, __pyx_t_3) != (0)) __PYX_ERR(0, 426, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_4);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 1, __pyx_t_4) != (0)) __PYX_ERR(0, 426, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_16);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_17, 2, __pyx_t_16) != (0)) __PYX_ERR(0, 426, __pyx_L1_error);
+  __pyx_t_3 = 0;
+  __pyx_t_4 = 0;
+  __pyx_t_16 = 0;
+  __pyx_r = ((PyObject*)__pyx_t_17);
+  __pyx_t_17 = 0;
+  goto __pyx_L0;
+
+  /* "cython_helpers.pyx":361
+ * 
+ * 
+ * cpdef tuple find_longest_interstrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_16);
+  __Pyx_XDECREF(__pyx_t_17);
+  __Pyx_AddTraceback("cython_helpers.find_longest_interstrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static PyObject *__pyx_pw_14cython_helpers_13find_longest_interstrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+); /*proto*/
+static PyMethodDef __pyx_mdef_14cython_helpers_13find_longest_interstrand_complement_cython = {"find_longest_interstrand_complement_cython", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_14cython_helpers_13find_longest_interstrand_complement_cython, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_14cython_helpers_13find_longest_interstrand_complement_cython(PyObject *__pyx_self, 
+#if CYTHON_METH_FASTCALL
+PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
+#else
+PyObject *__pyx_args, PyObject *__pyx_kwds
+#endif
+) {
+  PyObject *__pyx_v_sequence = 0;
+  int __pyx_v_min_len;
+  PyObject *__pyx_v_max_len_obj = 0;
+  int __pyx_v_allowed_mismatches;
+  int __pyx_v_gap_min_len;
+  PyObject *__pyx_v_gap_max_len_obj = 0;
+  #if !CYTHON_METH_FASTCALL
+  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
+  #endif
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject* values[6] = {0,0,0,0,0,0};
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("find_longest_interstrand_complement_cython (wrapper)", 0);
+  #if !CYTHON_METH_FASTCALL
+  #if CYTHON_ASSUME_SAFE_SIZE
+  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
+  #else
+  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
+  #endif
+  #endif
+  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
+  {
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_sequence,&__pyx_mstate_global->__pyx_n_u_min_len,&__pyx_mstate_global->__pyx_n_u_max_len_obj,&__pyx_mstate_global->__pyx_n_u_allowed_mismatches,&__pyx_mstate_global->__pyx_n_u_gap_min_len,&__pyx_mstate_global->__pyx_n_u_gap_max_len_obj,0};
+    const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 361, __pyx_L3_error)
+    if (__pyx_kwds_len > 0) {
+      switch (__pyx_nargs) {
+        case  6:
+        values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  5:
+        values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  4:
+        values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  3:
+        values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  2:
+        values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  1:
+        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 361, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      const Py_ssize_t kwd_pos_args = __pyx_nargs;
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "find_longest_interstrand_complement_cython", 0) < (0)) __PYX_ERR(0, 361, __pyx_L3_error)
+      for (Py_ssize_t i = __pyx_nargs; i < 6; i++) {
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("find_longest_interstrand_complement_cython", 1, 6, 6, i); __PYX_ERR(0, 361, __pyx_L3_error) }
+      }
+    } else if (unlikely(__pyx_nargs != 6)) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 361, __pyx_L3_error)
+      values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 361, __pyx_L3_error)
+      values[2] = __Pyx_ArgRef_FASTCALL(__pyx_args, 2);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[2])) __PYX_ERR(0, 361, __pyx_L3_error)
+      values[3] = __Pyx_ArgRef_FASTCALL(__pyx_args, 3);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[3])) __PYX_ERR(0, 361, __pyx_L3_error)
+      values[4] = __Pyx_ArgRef_FASTCALL(__pyx_args, 4);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[4])) __PYX_ERR(0, 361, __pyx_L3_error)
+      values[5] = __Pyx_ArgRef_FASTCALL(__pyx_args, 5);
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[5])) __PYX_ERR(0, 361, __pyx_L3_error)
+    }
+    __pyx_v_sequence = ((PyObject*)values[0]);
+    __pyx_v_min_len = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_min_len == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 363, __pyx_L3_error)
+    __pyx_v_max_len_obj = values[2];
+    __pyx_v_allowed_mismatches = __Pyx_PyLong_As_int(values[3]); if (unlikely((__pyx_v_allowed_mismatches == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 365, __pyx_L3_error)
+    __pyx_v_gap_min_len = __Pyx_PyLong_As_int(values[4]); if (unlikely((__pyx_v_gap_min_len == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 366, __pyx_L3_error)
+    __pyx_v_gap_max_len_obj = values[5];
+  }
+  goto __pyx_L6_skip;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("find_longest_interstrand_complement_cython", 1, 6, 6, __pyx_nargs); __PYX_ERR(0, 361, __pyx_L3_error)
+  __pyx_L6_skip:;
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L3_error:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __Pyx_AddTraceback("cython_helpers.find_longest_interstrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_sequence), (&PyUnicode_Type), 1, "sequence", 1))) __PYX_ERR(0, 362, __pyx_L1_error)
+  __pyx_r = __pyx_pf_14cython_helpers_12find_longest_interstrand_complement_cython(__pyx_self, __pyx_v_sequence, __pyx_v_min_len, __pyx_v_max_len_obj, __pyx_v_allowed_mismatches, __pyx_v_gap_min_len, __pyx_v_gap_max_len_obj);
+
+  /* function exit code */
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __pyx_r = NULL;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  goto __pyx_L7_cleaned_up;
+  __pyx_L0:;
+  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
+    Py_XDECREF(values[__pyx_temp]);
+  }
+  __pyx_L7_cleaned_up:;
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_14cython_helpers_12find_longest_interstrand_complement_cython(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_sequence, int __pyx_v_min_len, PyObject *__pyx_v_max_len_obj, int __pyx_v_allowed_mismatches, int __pyx_v_gap_min_len, PyObject *__pyx_v_gap_max_len_obj) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("find_longest_interstrand_complement_cython", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __pyx_f_14cython_helpers_find_longest_interstrand_complement_cython(__pyx_v_sequence, __pyx_v_min_len, __pyx_v_max_len_obj, __pyx_v_allowed_mismatches, __pyx_v_gap_min_len, __pyx_v_gap_max_len_obj, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 361, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("cython_helpers.find_longest_interstrand_complement_cython", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
   __Pyx_XGIVEREF(__pyx_r);
@@ -5934,8 +8296,8 @@ __Pyx_RefNannySetupContext("PyInit_cython_helpers", 0);
  * 
  * 
  * cpdef double g4hunter_score(str sequence, int window):             # <<<<<<<<<<<<<<
- *     cdef Py_ssize_t seq_len
- *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
+ *     # Canonical G4Hunter (Bedrat, Lacroix & Mergny, NAR 2016): assign each base a
+ *     # run-length score (+min(run,4) within a G-tract, -min(run,4) within a
 */
   __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_14cython_helpers_7g4hunter_score, 0, __pyx_mstate_global->__pyx_n_u_g4hunter_score, NULL, __pyx_mstate_global->__pyx_n_u_cython_helpers, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[3])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -5945,19 +8307,58 @@ __Pyx_RefNannySetupContext("PyInit_cython_helpers", 0);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_g4hunter_score, __pyx_t_2) < (0)) __PYX_ERR(0, 150, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "cython_helpers.pyx":176
+  /* "cython_helpers.pyx":207
  * 
  * 
  * cpdef double g4boost_score(str sequence):             # <<<<<<<<<<<<<<
  *     cdef Py_ssize_t seq_len
  *     cdef const char* seq_data = PyUnicode_AsUTF8AndSize(sequence, &seq_len)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_14cython_helpers_9g4boost_score, 0, __pyx_mstate_global->__pyx_n_u_g4boost_score, NULL, __pyx_mstate_global->__pyx_n_u_cython_helpers, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 176, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_14cython_helpers_9g4boost_score, 0, __pyx_mstate_global->__pyx_n_u_g4boost_score, NULL, __pyx_mstate_global->__pyx_n_u_cython_helpers, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 207, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_g4boost_score, __pyx_t_2) < (0)) __PYX_ERR(0, 176, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_g4boost_score, __pyx_t_2) < (0)) __PYX_ERR(0, 207, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+  /* "cython_helpers.pyx":285
+ *     COMPLEMENT_TABLE[110] = 110  # n -> n
+ * 
+ * init_table()             # <<<<<<<<<<<<<<
+ * 
+ * 
+*/
+  __pyx_f_14cython_helpers_init_table(); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 285, __pyx_L1_error)
+
+  /* "cython_helpers.pyx":295
+ * 
+ * 
+ * cpdef tuple find_longest_intrastrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_14cython_helpers_11find_longest_intrastrand_complement_cython, 0, __pyx_mstate_global->__pyx_n_u_find_longest_intrastrand_complem, NULL, __pyx_mstate_global->__pyx_n_u_cython_helpers, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[5])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 295, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
+  PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
+  #endif
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_find_longest_intrastrand_complem, __pyx_t_2) < (0)) __PYX_ERR(0, 295, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+  /* "cython_helpers.pyx":361
+ * 
+ * 
+ * cpdef tuple find_longest_interstrand_complement_cython(             # <<<<<<<<<<<<<<
+ *     str sequence,
+ *     int min_len,
+*/
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_14cython_helpers_13find_longest_interstrand_complement_cython, 0, __pyx_mstate_global->__pyx_n_u_find_longest_interstrand_complem, NULL, __pyx_mstate_global->__pyx_n_u_cython_helpers, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[6])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 361, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
+  PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
+  #endif
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_find_longest_interstrand_complem, __pyx_t_2) < (0)) __PYX_ERR(0, 361, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "cython_helpers.pyx":1
@@ -6030,39 +8431,39 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 9; } index[] = {{1},{31},{4},{179},{24},{8},{26},{20},{18},{4},{11},{18},{17},{14},{8},{13},{14},{13},{5},{11},{8},{10},{5},{8},{3},{12},{8},{12},{10},{8},{6},{6},{257},{185},{143},{293},{100}};
-    #if (CYTHON_COMPRESS_STRINGS) == 3 && __PYX_LIMITED_VERSION_HEX >= 0x030e0000 /* compression: zstd (958 bytes) */
-const char* const cstring = "(\265/\375`\351\004\245\035\00064\264:\020\263\033\000\000\005\200\000\022H \001\001\010@ \022\221\210\004\3226f\036\312\2601\002\370\360-\024\302\276\272\005\352SU\3550\252d\313l\252Q\255J\235{\317Z\265j\325\3756\227\000\235\000\255\000!\211w\346z\264 x+I\0065\256(/\330\214\013'\365\355V\356q\206\225\267xW\362N\310q&C\260f\324\306\320\216:\344\227\353q\274\031\225\347]\307\274\357-\217\265\324\271Js\251\254\235o9^\307\220\213a9\2534]w\336\373\212xVr\234q2Y\301\361V\227\210k\003\246\002\253#\2319\016I\276kN\314\374\222y\026\212\031\254;\254\243\266\361\034J\345\327\306k\346\032&\217\032\206u\371\005k\306c.qy\327\2753\306\267j^\301,\206w\305$=\027D@J\277\035j\227\201\242\320\221\212^\005)m\355\276\235\001\212;Cj\257\222\204Z>B\324\343\321\340\030\362\354\\\212w\307rk\271X\202\\\274%\316\332\233\276\351\334\321Z\233\305\022\324\341\325\261v,I\313w\256\215Z\334:\231\207v\207\226\3146W-o\313\267\3263W\315Z<\2264ki!\327:\026\337[\031\332\034\214/\311\355\030Z\021o>\226\032\333\274\357l\347R\223\032\263t\210\307\334\276\264,\343=\031\306\246\344`0k{r7\326&\363M\3146\21396\277\005\344\357\361\024\035U\222\371Z\367\350\013\035\353x\276\276u=\255\230\356%\204\362\253\223)U1\244//\301\220\242xxW\202.\240\031'\352\314\371\026\037\340\307x\222\236:\245/^\005/D\00351?\023\306K\234R\234\277^\345\013\372\311\224\276:\203)\375N\200\023\347\237\374\026\337\362\271\277\214x\270\335\r\252\315\230\t\344\t<\256;\230Xt\246R:  *\r\305\272\212$TPJo\367\350?\270\235lG\202~\350\312i\377\005)\305\351\024Ji\354w|\010\217\373IOu\037\224\037y\034]B)E\231\370\227\370\000\377\321\003\002\2433\367o\374A\357\340;W\346\310,\375:2c>\311h\207C\033\320\021*\362\365>Q\257%\323\355\310\304\364bb=\031^\007\357`7C-P\000\024\247\374\262\277#\360\372\025\177\305K\220\322\230\331a\322\220\376\314[x\010tu\372\374\3731T=\325\271p\026\230\263o\363\023_i\365y\010Q\357~\033\357\322Gxw\245\020\322WO}\324\177(\305\372\213@W0\362\017\243\240\026\210\356\200\224^\177\342i=\326\031po@u\224^^\363\304\254\371/\221\2362""\245-\377\371\231\356\322O\027\335@W\"\t\215\374J@40\344`\006b( \204 \205N=B+\025\023\221@\210H\312\260_;s\3472\212\330E\006@m\026\000\256\343\006\232(-(\230\307\245\021\204\n\010\272;\2127\320\322\213g!@JS\215\337\247\342\211,NC\214)\224\221\037\245\005Z\322\204t\210\203aX\363\002\271\364Q\t\303\001xKjr/\034m\014G5\000\241G\216\203\237T\274\360\t\224\211\230\210\210hc.\251\333\210U@\0265\263\346xD\200\207>\364\252\2727\266\037[\2025\351pY$\020a\221-\322\202,A\253%D\020\023\244/fV\335\357\303a\210k-aM\002\311\003\205F\247\306\202\211\302h\034\211\307\270Ioy\265\250\264\217Y8*\316.y\311\252e@]\2432\267b\035L\021\300\317R9\003\2500\272\340\203e\334\240\2251\003";
-    PyObject *data = __Pyx_DecompressString(cstring, 958, 3);
+    const struct { const unsigned int length: 9; } index[] = {{1},{31},{4},{179},{24},{8},{26},{20},{18},{18},{4},{11},{18},{17},{14},{42},{42},{8},{13},{14},{15},{11},{13},{5},{11},{8},{11},{7},{10},{5},{8},{3},{12},{8},{12},{10},{8},{6},{6},{257},{409},{456},{478},{143},{293},{100}};
+    #if (CYTHON_COMPRESS_STRINGS) == 3 && __PYX_LIMITED_VERSION_HEX >= 0x030e0000 /* compression: zstd (1549 bytes) */
+const char* const cstring = "(\265/\375`\001\n\0350\000jI\320\017;\000\267\033\374?\375\252\343\375\227\357Q\307\327p_\367u_\367\335\277Ez)7'\277\375`\300f\345\344n\212\310\230\244xc\202\223@D,\205\333\003\\\200m+\234\017\324\227D\001\342\000\353\000\360\000<\266\304B$\231\325\025\237%6\311\275\236,Jb\2753nk\026UQ\322\003-\311\263\267\363\326@\344\232w\273\334\341\234&BM3\353\364m-\3225\270\245\250w\203qQ\217\347\261U\31535\020&?\366\312+Urk\234\313e\361D\347PRd\241\335\350\310\254*\312\343\261\373\324\361\320\333\314/z\250T\313\234\230\361s\226\370D\3135\257\350y\346\014q\325[<\365\316<}\212,\332\023u2\242\307\326\274\336*\236\345j\226,N\324\241\342\326{g\223\304\261+\251\203\264*\346\316,\206\224\204t\334\270\334\210\247\252W\262T\327-\366L\275fU\343JS\347\304]\212'\n\264\366X\3045\003\255\242^\321\032}\2425\036y\3159Q\223\247fS\275\305\2755If\021]\305\2346\313\374\262\022'\334\265ziL1&\022\rw\345\217\277\246G\254\336\264\347\016\353\005|\245zi\374\245z\3076\240\r\3625\037\323e]\363\231\220)\375\365\270\350\267}\245N\320S\316\240\202\361\251R\357\000\n \325d\343\260S\260 \365f\016\302\221\322\337\355w\342\216\356K\213\375\305\351M}\n\251\327\346g\376\241\223\274\306]\334\210\325\303\036\344KH\275\254Oz\224.\320E\270\000\357-\021\234\336\361\307\372e\270,\327$\006\214\235^\331o\374\031\270iK\"\002\305SP\326!\000\200D(\321\326\254\231\2070^M6\267\232\231M1\346\241\274]>1\306\332ds\370d\325\275\323k\211w\031\204C\361\251M\\\224w\230\227Y\240\220\037\275Q\024\027\362\2031y\262:\214\365N\233\274\035J\256\353\326?'j\342\334Y\352t\345\212\3560\231\003m\2555\371\033\236U\3431Y\333j}J\324\031\037\271\216\017\345+@\001\250\232r\237\350D\234\201\000x\n\216\274\325I\202\331\007\342[m\356I;\2663\010`\004\n\240\325\024.\321\374i\206\313\370J\3631\177\324\252\377\366i_\347k\336\325\213b\375\310\207\036\243?\250\336\024\306]Z}$\364i_\320\341(\357\362\0317^\301I|\007\034\326Y\236\203\037\301\213\214~\273\310\372\330\037^\257l\374$\276\345s\372O\350q\275\326u\2577uY\334S\321\317\037H\243\007t\034_X\255*\274N""\257\350\233\263p\326\346i%\334\305\0038\016u\n\332\272\304\351\r\273C\330\033N/\213\223>\242\354\326\334\230V\326\356P\214|\373\212d#\n`\325d\363\321\202\254\356\260R\275\260\327K\353\021\257\227\305D\376P\334\226\233\321\262Z!o\341\003<N\017a\333\363=\375\000x0\266\016?\024\303\217\343O\302_\352.\270\241[2\002G\000\240\354\346\033\312\301\001\342\330\2009L3\246\003\213\240_\373\354P\277u\324\313\354\357X\364\007\327\2415\362\331c\300\200\260S\001\320\230r\000\000f\317\323e\270I\210\013\301\305GX\276!e\3434\202\201\246\034\340\252\214\236\244C\310~\255\237\017\001Ao\370\341\334\232\353ri~\354\007\304\310R\004Z\334\347\3612\001i{k+z\276\354\266\376S\363O?\245D\363\026/\226\337\351\207\263\266)_{\216\276]\031\261 \014\327Q|\354\025\376\324g0\000\335\231\013\323\306\322\317\362q\227pc.\211\n\362mT\274\300E7P\005Y,=)\230v\212\006\237\323g}\345E\241\213\323\"|\\,\242\027\264\265\263\266\344\267\276\352o00\266\377\372>\375\025\302KB\276J\251\277\0242\200\364\250\341,#\221#$#2\222$\251\244\003 \204\020\204\312\262\003r\003S*c\321\214\2142J\312*\243Pc\014\272 E_\211\371Q\001\250q\022\022q\177P\242D\351\247\\T2\324\361\272i\026\203C\331G\262\205\020X\337)\212\330HF\226t\224\3129\221\265C3plW\354{\345\245@\3350\022-\237\013T\004q'\000Q\0227G\035\362\305\3721i\2024\341\313\0303\263\257],K\nd\273WO \342\362\271\236\322\200,\205\205w\370t\205\200\371\035\nL&\024O|\202\366\223\342Hbx%r\232[\263b\361WC\253\265\216Ug\351p\210\tA\363\3455<v\002\363\254Aw\2614S\372|\023\344w2q}\331S8\203s\334P\362\337x\026\204F6Z\207\254\225\344\234\213}\340\311\273\367AA\210\220\006##\t\273Y\372+\372\350\352\352\223]\267A\037PH*\236Q\233\274##\224\231\210$l\373AQ\373y\250\r\032\000P(\t\366a\033\204\"f\342~\333{=\272Q\337\267\006\334i\374\370_O@f\232pme>pj\033\340\004\0264\314\305\371\003@\260\370\372(r\001\347\351\365R\211\001\346\374,=<+\006\\y]--\343/\227\360]\006}\24637\300E\037NU\351\t\000\004\270'\234\364L\227\304(\201\320\317\321\364\344\301\326\201\022.\t\335@\004\016_\332\357h\343\202#\307""\337\320\000\023AEJ;\326\205\020\371/\033\370\013\341\304\261\226O\203\036\325M\324\034:y)\376Vs0\363\266\365\207\206\016d\000\250\017\355\300i\257\263\344\177\n\003\016\031\267\236b\2570\227\223\211\250\301!6d0\007\203btzG\303\277\346\0010\335\320\3076\276\035\010\377\315|G\307\242\221W>\347\316c\325+nF\251\272\033\034\265L\003\257Q\243\013\206\223\245N?m\274.\222\202u~\203\234\241\n";
+    PyObject *data = __Pyx_DecompressString(cstring, 1549, 3);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1049 bytes) */
-const char* const cstring = "BZh91AY&SY]\003\240\301\000\000\343\177\377\377\377\377\375\367\303\277\370\277\361\177\260\277\377\377\365@@@@@@@@@@@@@\000@\000P\003^\034\034\252\214\341\203Q\n\006\217\322\200\032~\244\036\210=M1\036\240z\2313H\003\324\364\215\000z\206\236\241\352\036\241\265\033SFi\006\251\3514\324\364\211\346T\330\215OS\004\321\240\001\240\000\000\000\000\000\000\0004\000\324\3024\232\t\224d\332\211\230Pi\220\003\324\000\320\000\0004\000\000\r44h\016\000\001\240\000h\014\200\000\001\240\0004\320\000\000\000\001\240\002I\010#!&\324\365\030\324=F\200\320\0310 \003\021\352=@z&\200i\246\201\264\217L\231\022Y\026\000\364^\272\005\353\373\357\025\374\021<\276\306\005),\202\201\205\013\201\201\230@\310e\035@\207\n\255Y\013\204\204$R\260\"*\004E\tG\322\253Ftb\320 7\021\246\022x0\231\"\2733\220\344\3478\230\304\226JB\236w#\025\344q\362\0055\210\224\343\335N\255I\233\233\314\232T\024\342H\214\252\351\324)\321\204n,M\t\030\331\244\213\2676\271Z\311\325\350{\373r\374sc\371I\2475\3311\261\032\220\340!=a\325\336\277\177;\020t\013\032\023\260\007\261Eq\305\350\314\271>\234\311@z2\276Yw\320OH\322\261\322\004\024\005p\271\225b\207wz\326\004p\223\254p\226\005\350\277\245b\325t\213\205r\364`!c\215\326!\222@j\334~\031\265V7\2470\200\330\262h\327\017\037\2720\030f\271\"\255\000\333(\220[Y\023\327w\333\352\262x\006\026\325N\311\202-\034\177S\314\334\226\301:\"\006\302\000\302\240b=3\007\272#\002\000\251I\255\206\261\37367\307\373\220\307\262)\244G\250\036B\334t\362\226\n]\002\002\001)\341\361o%-\304\3750@\2421\240\022\022B)\225\014\313\201C\225\352O\005\322B\210B\352\357ad!\230\237ju[q\246P\021\211\243\315;&\250\333T\332\362d#\2400,\002A\006\323\020@QZK#A\332\367\362\364s\354\005\240\372\rM'`\340\200\243F\017(\032\025\2531\223\367\030\341\367\314\231s\022\262h\323\330\023\3516b\016\276\206U\013 \336\363I\033\271\306\021-7\210 2}\204\257\031\031\230\256\023\215-\216\376gX\346\253\034\260\260y\252\237\n@%:\202\216\026\201\010\206ZV\247\002D\227\032U\221\340\023\2056\005\245\214\320Dr\"\003\021\207""\031\031\300f\225s\225ku\003\301Q\201\227\003\021\214\304%D\200;\272\002u\2103\026\301\356!;\335\232\213P#\336\\\236vy\210L\205RU\026}4\001k\220O|M\0309\250Kd\367\335\022\331\210!>\206}\025\351\307\teH\305\347[S\373\0039\215\263\005\364\017\304\317\223\213\\\357\343\221c\320\025Ff\243\267\353B\366\026\274\210\262\035\354\323\255m\032\302\316\030\350\223\016\263\220&V\277|f0\276\271\356\330\330\016\017\200=\213\260\034f\026\334\235\375\177\034\366\236\033\210r\n\364\322\252\351\000\224\310h\202\262\243\324\022\217\262\001 TJ\033 H\205Q\th\204i<<'T\232=\302\203\340n\225p^\227]RD\210\357\325]\242\277\261\224\034\247\300\240|.<P\311z\273\305\203~.(\322\255g\253\3664n\023\303\216s\236[z.\331\231\016\335\243\340\0068\366X\371\235Jz\242M\3535! b\363h\201\227\361\2261\215\002i\271\234\321\243\233\224\202\033\270\200\213J\223\241\021X\275\272\331{\2233\033\267\243<\202\372\352\322\305L`\212\034X\230\324RO\010o\016\343$\024\252$H\002e\037\350\207\202\201\301\344F\312\363\017Jc3E\346\020(\020\0162R\004e\035(2L\214\201W\376.\344\212p\241 \272\007A\202";
-    PyObject *data = __Pyx_DecompressString(cstring, 1049, 2);
+    #elif (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1612 bytes) */
+const char* const cstring = "BZh91AY&SYBK\\{\000\001\276\377\377\377\377\377\377\377\347\277\376\277\363\3774\277\377\377\377@@@@@@@@@@@@@\000@\000P\006\036\001\273#V\206\232.\000\034\002P\242D\003jh\321\241\275)\351\246)\352l\023\324\321\223L\232\2311\240\321\003O)\223j\000\306\211\246\206\324\320\323OMA\241&\010\004\310\032jzF\211\223G\250\000\000\000\000\000\000\000\000\0324d\365\000%L&I&\221\210\003@4\000hh\000\000\000\000\032\032\000\000\000\000\004\030\000&\000\002`\000\000\000\000\000\000\000\000\000\000\000\000\221@\200Jm4\214\246\3654\206\021\204` \300F\006\2010\020\006\002b1\014\2314\315\032+\274\254\206i\217\330\036\257H\217\374\365z\364\344\221\247\354\234\247E\026\215:\223* \021D\253\025\t\212jd\2655\001\014clbc\001\215\003\006\242TUa\215\006\241m\272\317q\241\230E\001Be\321(^,\023\030\320\225\205\n+\0028d bE\367H\032x\241yp\257\006\2201\212`1]lD\265lhl)1*&\204H\223\032\242\314\272\334B\302\350S6\0254A\206C\002\340\212\245B\251\026\226\350\205\203\035\343E\352\262\230$Ni\226\333\231,\230\355\n\020\330)\352\206\211]]\252LYG\n\304\233(`gFS-\2020\307\023\025(YqY2Z\372\020*p\232\264\204\006\206>\375h\364y|<-%s\271>\356\264?~#\277\n|I\006D\032\216\225H\300\310\247!>\021|\253\256\262\263\020*\236\214\201)b\302M\234Q\030{\226\213LQ\351\020M\014k\326\264\302\330bX\2042?\276$O\246\253+\223\214\016\346\257\311\254\326\304\231\252h\263o\234\24022\010\220Y\032\030\3119\014\271\022\341\024X\006u\205h\241\324\347d$\202\352\020l\205\331\021q\206\302\252M$\3008\216\274\\\304R.0\230e\231\026\370\273T\315\324\222b\225QQ%\035\2041\025\\\025\306\005\005\n\335S'\nd\202\270F5\373\34197]\201Z\321\230J#\214\316\267\275\232\3348q\014\257E\322i\257D\341\014\270\030\210\"\272\252-_\004MT\210P0\232\312\036\262\013\201\343\325\001\\\366y\351\220H\310dD8M\004R\344\234\365\377C+\270\317P\351&\300\324\263\027\0223\n\210\\AYDU.Hh\030c\035A\204\301$[\252n\222zu'\333+\363!i\265\343s\214D#\325\013\272\352f\202y\3240\020\244S\200\217\001(K)\002\000\330\315i\206y\377n\315\306}\226\005\211\\\257\274\320\336\014z9\261""\216\201\231~\210@y\232\250\252\005\260\257\035\344\246\2323t]9\203\000\353\232\325\372T\030\254\253\213\305K\333\206\300\323\\\nL:\257l\271\035\247\023\202\215$\016p4@1\t\004ab\314\320\212\010\330`\230\363\211\355/\265U\013\2329w\001\266;\034\345)\202\362\211bBX9L\206~{\356|\357\260YJ%\361\026!\224\366\n\226%T5\341\\6\321\223\253(b\"\243B41ES\010\200z\351\n\025P\260\366\262\264B\rF3\315C\024gU\205\225f\021D\021kd\255L\211\244\322R\223\010fJ\255\3337\007\206\203\266H\261-\310\220f\000\274\264\230\256\322\300\016y\232p\213L\025\007\325y\366\305\023\260<B-J\313Z\330-\214\272\300\3010\317\005\243\241\204\315\246f@\3406\2612.s\"D\254\312\016\374\343$\263\342M<W,K\022\276\332\265\366\270\032\021\224B<%\333\302X\034\021\003\256\275\315#\002T[J\245\301@\234\n\025\006:f\231\340\301\255\003#5$j\221\315\013\232P* \241\025\360\3670\233\030y\301R\226\276x\242\200U\t2D\014K\206\311\251\316va\334\205\004\205%\223\262qS\\\246\205^\022\013\353\021\023,\243q\r\333\007\027(O-\302\264\310A\337\030\250\0063\277\275zH\016\240ib\030\032@pM\341\312-\025\361\225\022\300\223\305I\"\365E@\255!p\304Q;\274\0076pd\230e\212\340\2748;!\250\\\262\032\352\026\326\000\256\216\214%\023a\205<\214\2568\215\366\213\261\020S\210\265\210\347\301R*\014\026\325y\031\227d(\250\221\312\323\331\213jxR\362\360TZ\310q\251\3557@\336T%\004\004cMM\264 \n\250\212I\323J\022\240@&Z\230\262E\271,\232\345\241G\034U1Ij\265U\367\321\365\367\215\216\303\203\214\350\351\300\223T}[]\233\234g\320T\332\341\306\334K\243\271\006E\231\371]\022\201\304x\312\014/\350R\217\341\335:\\f\215\034\303/\214Z\220\034\266eU)&\361\2303+\242\213\351p\251P\335\313\346fb\214\363\362J(o\322\201O\221\213\332yti\224h\234\277r\370\326\220:\343\2159\371\312\307\242\203\231.\222c\\\177\342\263\271F\202\253\022\\\2659\376X\323$\313\230\340\246\227JYY.\315\372\315\305\214\227n\214\\\326\032N\246\256\371&Q\245\036\257\367\025\335\223\301\">~q\036*f\327\347#\216F\344\304\261\024c\331c\266b\tR,<4\245La\302\314H\206\307L\247\021\236\325\222\203\326N\264""\347\241B\022\013\370\367q\364\260\260\247\020F{\227@\332\036\204<\206\206\214\355\002\020qM!\231\276g\360\246\303\025\351{hj\340\340!\200\267\345\376\216|\213\342D\027\343C\334{\2752}w\252\227\266=\335\263\255\234J%\376\256\222\370\270\213\212e\350\230\366Z\261\303\024\250\352\3457\265x\252a\305,3\226\022\035\310\210\237\363e8\266[\027\027\rsV\210\243\216T\303\275[* $\r\026B\244\203X\225\021@j\314\326Xa\330\232\270\362\203\211Q\240Q\204\201\331\352\343\220\306\002\026\"\221YI\025T\261\"\\AT\261*\177\305\334\221N\024$\020\222\327\036\300";
+    PyObject *data = __Pyx_DecompressString(cstring, 1612, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (944 bytes) */
-const char* const cstring = "x\332\265\223\317O\033G\024\30711\301\004\267e\371\221\004\212\332YDJ/\2452\245\r!\207\310\320\322\222\003\302&\264j.\243\361\356\030/Yv\354\235Y\300QUq\334\343\034\3478\307=\356q\217>\372\350\343\036\371\023\362'\364\215\r\025T\221\252\036\272\322\256\346\315\274\037\237\357{\263\257\366\210\347S\027\t\206\210\343P\316\021\247\235\210\006\016E.\021d\375\200\005\364\200\t\212D\213\010\264\333\025-\026 \217#\227\372^\203\206DP\277\213\270\010=G\320\3208\005\350\360\247\303o6\2676\021\t\\\024\322S\352\010H\0325\034\237pN9bM\324\210<_x\001\022\3356\345\353h\277\211\272,B\001\035q\264\t\277\027 Z4\000*a\026h\215\004\001\023Dx,\300\020\356\005'k\310\365B(\342\235S\023\275G|N\327\217\003\036\265\333,\024\220r\377\370\260\272\213\034\346\322mD\\\027C<\345N\350\265\005\377\326\031\n\302-\352\267i\310\327\333\335K\214\017\341s\330\375\021\024\341\003z)\352\264Ix7p<\266\356\260\220E\000Ny\203pj^\354\260(\020\334\361a\023{\200\024\022\007\016\234w\303}\354Em\342\3403&\274\346\375J\0307\243\300\301\370d\263\301\030\027\230Cjz\262\331\202 \032\216,\354q\374wAO\3203\356\263\340\204\202s\030\005\030\237\021(\007\317\031s#\237\342Q\021\214\003r\006F\233\2651\356D\304\037\231\267#5+\201o\367\204\013\312\"_`,LV|N\374\210\362\013/p\331\305`\354sU\271.\242\001z\236v\262G=\273W\311\213+\203\225\027\231\225\255\365\254\236\235\027'\257\272\362\201\374^=P/\265\223Xy\351\323\370T\025\224eN\336\3139\271#\035\265\2447t-/}\026w\362\3423\215\323\275\314\316\266{\365^\3078\375!\277\223$/M]\027\027d\355Cil\342a^*\307?CJ\223\245\374Dv\324\244\3723\251%,{\333\353\364\013\346\364\265\244\252\242~\321;\3724\035O\355\274</\253yyFN\251\005ET'\237YV\007\211\235\274\312\276\006\344\347\375\225~5\237\231\223\333\352H\217\353U\375.\265\322\265l6{\331s\372V>\277\254\252\371\374B^6x3\213P\323\200^C\225j\\\373h\003F\222+\367\244^\306\\\3327\022'\257.bG\316\202\256\023U\007\232\222%\301\347Ku\251\303\344\211\341\375\360plbQ\025\256\213\245\370\221|\006\002A\324\214\034*\333\227\307\312V\225\274<'\267\206\022""\253\372\267d'!\006/\222\273\362\006\321z\014m\265np-9/k\262\251v\024\311\213\323\361\017P\272rU\370w\352\247P\367\376\307\200M\305\223P\251*k\206\251\004\236O\265\245A\232I<g\332\014\023\311?\231\033N\355c\353M)\014\277\261\000\346\205\334W\277k2\030[R\366\177\355\343\377\317\2678jC\t\256\205}g\361\205j\351F2\225\316\246@\2710X\370J\023\375>]\314\340hI\255\252\206.\302X~M6\222Z^\\V{zEWM\364\004L\373\\\327u\004\003;\315\306\263\325\254\321\233\356o\364\337\014jG\203\2437F\336y\\\007e\267\327\344\2565\035W\006c\360\007\374\263I\366\300\336\312\n\331\343\254\323+\334\375\333\266\365QR\270\327\272\233f\016\263!]J\n\311bj\033\005\323\203i\270\343\352\255\356\246\205\277\000o\364Dj";
-    PyObject *data = __Pyx_DecompressString(cstring, 944, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1535 bytes) */
+const char* const cstring = "x\332\305U\313S\333F\030\307`\007\023\234\306\306&\341\221\207dHHgZ:&$\020\222L\306\320@\310L)6!3\311dF\263\226\327 \"K\326\013p\322fr\364q\217{\334\243\216:\352\350#G\037u\364\237\300\237\320o%\343\001\332N{\350\343`Y\373\370\276\375~\217o\365b\035)*\256\n\266. Y\306\226%X\330p\260&c\241\212l4\277\245kxK\267\261`\357#[Xk\332\373\272&(\226P\305\252R\301&\262\261\332\024,\333Td\033\233|\223&l\277\334\376~qyQ@ZU0\361\001\226mH\352Td\025Y\026\266\004\275&T\034E\265\025M\260\233\rl\315\013\2335\241\251;\202\206\243:\032\310\272\020`\357c\r\252\262\371\2130\2074M\267\221\255\350\232\004\341\212\2667'T\025\023\016Q\0161\217^G\252\205\347w5\313i4t\323\206\224\233\273\333\3055A\326\253xE@\325\252\004\361\330\222M\245a[?\310! i\037\253\rlZ\363\215\346\261$m\303c\273\371# \222\266\360\261]\3065\244\252\372\021\256Ju\305\252#[\336\307\026\262\232\232\254\350\363\262n\352\016@\301V\005Y\230\377$Yw4\333\222U\230\224\024(\322D2,\310\037\303yIq\032H\226\352\272\255\324.\236]S\264\252\244\352\332\036\266`\227\006l\002\253@!\344\2537T\\\307\020\034E\\\336i\242?\333)I5G\223%io\261\242\353\260\331\202r\361\336\342\276\303\323\367F\250!\325\321\261\244bM\322+\007\341\020\252\346C\305\222\372\360\024\033\327\255\2633M\0072\327\221\022>\373\241ga\000\256\352\250X\212@J\222\206\3520h\350\rI2\034\244F\3033\223\3617[:\233\263\253\300\265\243\332\222d\363s\244C\244:\330:\002\274\372Qg`\232\026\272q\241#,y\206\177\265-\266\013A<\337\311?\3613\376\\;\323\026\203\370\360\327&\031\"\217\350\020}\312d7\023$\277i\035\320\030\315\360\225O$KV\211L\247\330\002+\005\311\353-#\210\337c\222\267\356\213\376J\273\3346\370\246_\310C\202\202\344H7>NJ\247\311\201\304\225 \231jm@J\236%u\223\030t\230~qK\256\356\277o\033'1\276\372\232`Z\240\257\330*;\360\006=1H\345H1H\245\311\010\035\247\210\032A\372\026\335rE\367\205\377\000J^:\311\237\024\203t\226\254\320\0356\310f\331G/\343\315\371c\376\323\266|\222\tr\267h1\310\215\007)^^z\022\316\344\205v\341\224b\253\024\022p\232\036H\210\027(\210@\027.\200=nYD\354\201""\274\013\005\277\365\n\336+\177\325G|\361\250%\023H<\022\304'h\214\203\234\244\261 ~\233\226\272\361\004\317R!\203\020\234\312\222\345\020W\021\350\202z\034\262F,:Cw\331\014L\2449\310\364\rR\241\203\364\001\300\330w\221{\0145\305\3755\337\010r\274rX\255\321UZa1\376\272G\337\2601\266\344\212\034<W\250\020\344\246\250\010\177\220\352eH\225\305\304h\356\021\273\346FGt!\022\021\007HI\203 Ar\264\265DfH\031\n\231cY\026\322\234 \273Q\232Iz\203\032p\030\024\376\230\216\301\014\260\366\222\214C\274\021\244\246\350}\026c!\235\237i\036\362\365\027\217i\1779\013\032\326\334\242[vM/T\3733\313\363C\256\267lR \257\001J<d#\r>8/\314\327\330\351\330@\342Vgz\301\023\275\025\277\024\321l\267\036\266P_\225.';\262\330\022\005i\306\210\330\215s\265\343\303\235\341\233\344\210\302V\300\332\333v\007\206\374q\232\032H\214\264\022\255]\"\222\005\300m\002\260e0\360\007o\314+\360$y\3604\327`\216e\330\267\356\023o\325\223\301L\317\332&\230)\231&1N\3312Y\204\300\034\375\340\346\200V\260\347\006\350\272\001Y\312\314t\307\334eo\301+u\373|49\205\267B\341\006\001\376*\253\270\327\274\035?\306i8&6]\000!' \014\030\277K\215.\314\376J\327\270\3153\335\024\227=\305A\201.W\351=\220c\210=\017\233\002\232\340g\367!\230\304\204\312\227\374\274\017\212\336\246\222\273\346\032\260\236\3676\374\005\237\023\333\2719\307\0147v\326!\261 \227g\241e\236\206F\312\215w{\246\313\367*\234\213J\311\002F\213~\307\260\373\314\263!\327N;\336^\203\236\316\315\262\"\257\361\013$K\272qw+:z:2L&|t\343\234#0\373\377\254\343\036-Q\2055\201\217\031\257\354\031\\\277AX\340jm\262wn\305\033\212\224\032m=\003\035\ngJ\276\n5\032t\363\356O~\026z\274\322\356k\005 '\340\3022\330p_\351\017\355\261v\341\222\332\323t\211\211}?<\367\007C\222\376\013\275\377\216\312\350\037S\367\362\307\343\3677g(\332\205\307\351\025\256\3340\\\177E~\001\245I\022vN@\267\211\274\265\036\303G\245\030~\027\202k\331\360\333\361G\357\213\221\\|\004\305<!\233\364\035C\235\001\270\352\376\272\242\213w\371\277_\337dDC\022ZK<\367r\207\356\203\311FB\273\306\307;\343\367""\031b\237\274I\037\226\246\350l\357f|\353.\300\005\003\335\260\036\336\233\020\235\240ez\010\276r\334U\367\000|5\013\356\034=Y8y\323)\355tv\336px\207\255r\313\350\301\2738\032m\025:\003p\355_&I\354\210\313~\314\277\341\033\355\330\371o\376\n\333\201\233\343<u=2\303l\0028$\346NBgC\212\321\316(\330\226\276\207n\213\375\006\325GJ\244";
+    PyObject *data = __Pyx_DecompressString(cstring, 1535, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (1513 bytes) */
-const char* const bytes = "?Failed to access sequence data.NoneNote that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.Unsupported IUPAC code: add_notescripts/cython_helpers.pyx__Pyx_PyDict_NextRefasyncio.coroutinesbasebase_countscline_in_tracebackcount_iupac_motifcython_helpers__func__g4boost_scoreg4hunter_score_is_coroutineitemslongest_run__main____module__motif__name__pop__qualname__sequence__set_name__setdefault__test__valueswindow\320\000\033\2301\340\004 \320 7\260q\270\n\300!\3001\330\004\"\320\"9\270\021\270'\300\021\300!\330\004\007\200y\220\003\2205\230\003\230;\240c\250\021\330\010\016\210j\230\001\230\021\330\004\007\200z\220\023\220B\220c\230\032\2402\240Q\330\010\017\210q\330\004%\240_\260F\270!\270:\300R\300q\330\004\007\200|\2203\220a\330\010\t\340\004\025\220Q\360\010\000\005\006\330\010\014\210G\2205\230\001\230\021\330\014\027\220q\230\007\230~\250Q\250o\270Z\300q\310\001\330\010\014\210J\220e\2301\230H\240B\240j\260\002\260!\330\014\024\220A\330\014\020\220\t\230\025\230a\230q\330\020\034\230N\250!\250?\270(\300!\3007\310\"\310A\330\020\023\220:\230S\240\002\240$\240k\260\021\260'\270\022\270;\300c\310\021\330\024\034\230A\330\024\025\330\014\017\210q\330\020\031\230\021\330\010\017\210q\340\010\014\210A\210Q\320\000\033\2301\340\004 \320 7\260q\270\n\300!\3001\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200x\210s\220!\330\010\017\210q\330\004\007\200w\210c\220\022\2203\220g\230R\230q\330\010\021\220\021\330\004\037\230x\240r\250\027\260\002\260!\360\006\000\005\031\230\001\340\004\010\210\n\220%\220q\230\001\330\010\020\220\001\330\010\014\210I\220U\230!\2301\330\014\023\2208\2301\230H\240A\240W\250B\250a\330\014\017\210u\220C\220q\330\020\031\230\021\330\021\026\220c\230\021\330\020\031\230\021\330\010\021\220\024\220Q\220f\230B\230a\330\004\013\2106\220\022\2201\200\001\340\004 \320 7\260q\270\n\300!\3001\330\004\007""\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\360\006\000\005\t\210\007\210u\220A\220Q\330\010\020\220\010\230\001\230\030\240\021\240!\330\010\013\2106\220\023\220A\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2204\220t\2301\330\014\027\220q\330\004\013\2109\220I\230Y\240a\320\000\032\230!\340\004 \320 7\260q\270\n\300!\3001\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200x\210s\220!\330\010\017\210q\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\360\006\000\005\t\210\007\210u\220A\220Q\330\010\020\220\010\230\001\230\030\240\021\240!\330\010\013\2106\220\023\220A\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2204\220t\2301\330\014\027\220q\330\004\031\230\021\330\004\030\230\010\240\002\240!\330\004\030\230\010\240\002\240!\330\004\036\230h\240b\250\t\260\022\2601\330\004\025\320\025&\240a\240z\260\031\270!\330\004\032\230$\230b\240\004\240A\240V\2502\250Q\330\004\034\230F\240\"\240A\330\004\030\230\005\230R\230v\240R\240u\250B\250j\270\002\270$\270b\300\013\3102\310T\320QS\320ST\330\004\007\200v\210R\210q\330\010\017\210q\330\004\007\200v\210R\210q\330\010\017\210q\330\004\013\2101\320\000\025\220Q\340\004 \320 7\260q\270\n\300!\3001\330\004!\320!8\270\001\270\026\270q\300\001\330\004\007\200y\220\003\2205\230\003\230:\240S\250\001\330\010\016\210j\230\001\230\021\330\004\007\200y\220\003\2201\330\010\017\210q\330\004 \240\010\250\001\250\031\260!\2601\330\004\013\320\013\034\230A\230Z\240y\260\001";
+    #else /* compression: none (2817 bytes) */
+const char* const bytes = "?Failed to access sequence data.NoneNote that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.Unsupported IUPAC code: add_notescripts/cython_helpers.pyx__Pyx_PyDict_NextRefallowed_mismatchesasyncio.coroutinesbasebase_countscline_in_tracebackcount_iupac_motifcython_helpersfind_longest_interstrand_complement_cythonfind_longest_intrastrand_complement_cython__func__g4boost_scoreg4hunter_scoregap_max_len_objgap_min_len_is_coroutineitemslongest_run__main__max_len_objmin_len__module__motif__name__pop__qualname__sequence__set_name__setdefault__test__valueswindow\320\000\033\2301\340\004 \320 7\260q\270\n\300!\3001\330\004\"\320\"9\270\021\270'\300\021\300!\330\004\007\200y\220\003\2205\230\003\230;\240c\250\021\330\010\016\210j\230\001\230\021\330\004\007\200z\220\023\220B\220c\230\032\2402\240Q\330\010\017\210q\330\004%\240_\260F\270!\270:\300R\300q\330\004\007\200|\2203\220a\330\010\t\340\004\025\220Q\360\010\000\005\006\330\010\014\210G\2205\230\001\230\021\330\014\027\220q\230\007\230~\250Q\250o\270Z\300q\310\001\330\010\014\210J\220e\2301\230H\240B\240j\260\002\260!\330\014\024\220A\330\014\020\220\t\230\025\230a\230q\330\020\034\230N\250!\250?\270(\300!\3007\310\"\310A\330\020\023\220:\230S\240\002\240$\240k\260\021\260'\270\022\270;\300c\310\021\330\024\034\230A\330\024\025\330\014\017\210q\330\020\031\230\021\330\010\017\210q\340\010\014\210A\210Q\320\000\033\2301\360\020\000\005!\320 7\260q\270\n\300!\3001\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200x\210s\220!\330\010\017\210q\330\004\037\230~\250V\2601\260H\270B\270a\330\004\007\200w\210c\220\021\330\010\t\330\004\030\230\001\360\010\000\005\031\230\001\330\004\035\230Q\340\004\005\330\010\016\210b\220\002\220!\330\014\023\2208\2301\230H\240A\240Q\330\014\017\210u\220C\220s\230#\230U\240#\240Q\330\020\024\220A\330\020\026\220b\230\002\230(\240$\240h\250a\250x""\260q\270\004\270C\270q\330\024\031\230\021\330\020\026\220f\230B\230b\240\001\330\020\026\220g\230T\240\022\2407\250!\330\020\023\2205\230\003\2301\330\024\032\230!\2301\330\020\024\220E\230\025\230a\230s\240!\330\024\032\230!\2305\240\r\250Q\330\020\024\220A\340\020\026\220a\220u\230A\330\020\025\220Q\330\010\013\2107\220#\220R\220s\230'\240\023\240A\330\014\020\220\005\220U\230!\2301\330\020\031\230\026\230q\240\001\330\014\023\2206\230\022\2301\330\010\014\210E\220\025\220a\220q\330\014\032\230&\240\001\240\021\330\010\017\210{\230\"\230A\330\010\014\210E\220\025\220a\220x\230q\330\014\032\230&\240\001\240\023\240B\240f\250A\250R\250r\260\021\330\014\027\220{\240\"\240A\330\014\017\210t\2201\220J\230b\240\004\240A\240Q\330\020\027\220q\330\010\017\210q\340\010\014\210A\210Q\200\001\360\022\000\005\034\320\0332\260!\260:\270Q\270a\330\004\007\200t\2103\210a\330\010\016\210j\230\001\230\021\340\004\030\230\001\330\004\007\200|\2207\230!\330\010\022\220!\340\004\034\230A\330\004\007\320\007\027\220w\230a\330\010\026\220a\340\004\030\230\001\330\004\036\230a\330\004\036\230a\360\014\000\005\t\210\005\210U\220!\2202\220R\220r\230\022\2308\2402\240\\\260\022\2601\330\010\022\220\"\220B\220b\230\002\230'\240\021\240)\2509\260B\260c\270\022\270<\300r\310\021\330\010\020\220\001\330\010\013\2108\2204\220r\230\024\230\\\250\024\250Q\330\014\024\220G\2301\230G\2402\240R\240r\250\022\2508\2602\260Q\340\010\014\210E\220\025\220a\220y\240\001\330\014\034\230B\230b\240\002\240\"\240B\240b\250\r\260S\270\001\330\014\017\210x\220t\2302\230T\240\030\250\022\2501\330\020\037\230q\340\014\017\210}\230C\230q\330\020\021\340\014\031\230\021\330\014\034\230A\330\014\020\220\n\230%\230q\240\003\240=\260\002\260!\330\020\034\230O\2503\250a\250r\260\022\2607\270\"\270A\330\020\035\230_\250C\250q\260\002\260\"\260G\2702\270Q\330\020\027\320\027'\240q\250\001\330\020\023\220:\230S\240\001\330\024\"\240!\330\020\023\220;\230b\240\001\330\024\025\340\020\026\220b\230\002\230\"\230B\230b\240""\002\240'\250\022\2501\330\020\023\2204\220s\230,\240e\250<\260t\2702\270S\300\004\300C\300q\330\024$\240A\340\014\017\210~\230S\240\010\250\004\250N\270\"\270A\330\020\033\2301\330\020\031\230\021\330\020\031\230\021\340\004\013\2108\2208\2301\200\001\360\022\000\005\034\320\0332\260!\260:\270Q\270a\330\004\007\200t\2103\210a\330\010\016\210j\230\001\230\021\340\004\030\230\001\330\004\007\200|\2207\230!\330\010\022\220!\340\004\034\230A\330\004\007\320\007\027\220w\230a\330\010\026\220a\340\004\030\230\001\330\004\036\230a\330\004\036\230a\360\014\000\005\t\210\005\210U\220!\2202\220R\220r\230\022\2308\2402\240\\\260\022\2601\330\010\022\220\"\220B\220g\230Q\230i\240y\260\002\260#\260R\260q\330\010\020\220\002\220\"\220G\2301\230I\240Y\250b\260\003\2602\260Q\340\010\013\210<\220t\2301\330\014\024\220G\2301\230H\240B\240b\250\002\250\"\250M\270\023\270B\270b\300\001\330\014\017\210x\220t\2301\330\020\030\230\007\230q\240\007\240r\250\022\2508\2602\260\\\300\022\3001\340\010\014\210E\220\025\220a\220y\240\001\330\014\033\2307\240!\2402\240R\240r\250\022\250=\270\002\270\"\270A\330\014\017\210x\220t\2302\230T\240\030\250\022\2501\330\020\037\230q\340\014\017\210}\230C\230q\330\020\021\340\014\031\230\021\330\014\034\230A\330\014\020\220\n\230%\230q\240\003\240=\260\002\260!\330\020\034\230O\2503\250a\250r\260\022\2607\270\"\270A\330\020\035\230_\250C\250q\260\002\260\"\260G\2702\270Q\330\020\023\220:\230S\240\001\330\024\"\240!\330\020\023\220;\230b\240\001\330\024\025\340\020\026\220b\230\002\230\"\230B\230a\330\020\023\2204\220s\230,\240e\250<\260t\2702\270S\300\004\300C\300q\330\024$\240A\340\014\017\210~\230S\240\010\250\004\250N\270\"\270A\330\020\033\2301\330\020\031\230\021\330\020\031\230\021\340\004\013\2108\2208\2301\200\001\340\004 \320 7\260q\270\n\300!\3001\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\360\006\000\005\t\210\007\210u\220A\220Q\330\010\020\220""\010\230\001\230\030\240\021\240!\330\010\013\2106\220\023\220A\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2204\220t\2301\330\014\027\220q\330\004\013\2109\220I\230Y\240a\320\000\032\230!\340\004 \320 7\260q\270\n\300!\3001\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200x\210s\220!\330\010\017\210q\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\330\004\030\230\001\360\006\000\005\t\210\007\210u\220A\220Q\330\010\020\220\010\230\001\230\030\240\021\240!\330\010\013\2106\220\023\220A\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2203\220a\330\014\027\220q\330\r\023\2204\220t\2301\330\014\027\220q\330\004\031\230\021\330\004\030\230\010\240\002\240!\330\004\030\230\010\240\002\240!\330\004\036\230h\240b\250\t\260\022\2601\330\004\025\320\025&\240a\240z\260\031\270!\330\004\032\230$\230b\240\004\240A\240V\2502\250Q\330\004\034\230F\240\"\240A\330\004\030\230\005\230R\230v\240R\240u\250B\250j\270\002\270$\270b\300\013\3102\310T\320QS\320ST\330\004\007\200v\210R\210q\330\010\017\210q\330\004\007\200v\210R\210q\330\010\017\210q\330\004\013\2101\320\000\025\220Q\340\004 \320 7\260q\270\n\300!\3001\330\004!\320!8\270\001\270\026\270q\300\001\330\004\007\200y\220\003\2205\230\003\230:\240S\250\001\330\010\016\210j\230\001\230\021\330\004\007\200y\220\003\2201\330\010\017\210q\330\004 \240\010\250\001\250\031\260!\2601\330\004\013\320\013\034\230A\230Z\240y\260\001";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
     PyObject **stringtab = __pyx_mstate->__pyx_string_tab;
     Py_ssize_t pos = 0;
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < 39; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyUnicode_DecodeUTF8(bytes + pos, bytes_length, NULL);
       if (likely(string) && i >= 7) PyUnicode_InternInPlace(&string);
@@ -6073,7 +8474,7 @@ const char* const bytes = "?Failed to access sequence data.NoneNote that Cython 
       stringtab[i] = string;
       pos += bytes_length;
     }
-    for (int i = 32; i < 37; i++) {
+    for (int i = 39; i < 46; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyBytes_FromStringAndSize(bytes + pos, bytes_length);
       stringtab[i] = string;
@@ -6084,15 +8485,15 @@ const char* const bytes = "?Failed to access sequence data.NoneNote that Cython 
       }
     }
     Py_XDECREF(data);
-    for (Py_ssize_t i = 0; i < 37; i++) {
+    for (Py_ssize_t i = 0; i < 46; i++) {
       if (unlikely(PyObject_Hash(stringtab[i]) == -1)) {
         __PYX_ERR(0, 1, __pyx_L1_error)
       }
     }
     #if CYTHON_IMMORTAL_CONSTANTS
     {
-      PyObject **table = stringtab + 32;
-      for (Py_ssize_t i=0; i<5; ++i) {
+      PyObject **table = stringtab + 39;
+      for (Py_ssize_t i=0; i<7; ++i) {
         #if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
         Py_SET_REFCNT(table[i], _Py_IMMORTAL_REFCNT_LOCAL);
         #else
@@ -6108,12 +8509,12 @@ const char* const bytes = "?Failed to access sequence data.NoneNote that Cython 
 }
 /* #### Code section: init_codeobjects ### */
 typedef struct {
-    unsigned int argcount : 2;
+    unsigned int argcount : 3;
     unsigned int num_posonly_args : 1;
     unsigned int num_kwonly_args : 1;
-    unsigned int nlocals : 2;
+    unsigned int nlocals : 3;
     unsigned int flags : 10;
-    unsigned int first_line : 8;
+    unsigned int first_line : 9;
 } __Pyx_PyCode_New_function_description;
 /* NewCodeObj.proto */
 static PyObject* __Pyx_PyCode_New(
@@ -6147,12 +8548,22 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   {
     const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 150};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_sequence, __pyx_mstate->__pyx_n_u_window};
-    __pyx_mstate_global->__pyx_codeobj_tab[3] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_scripts_cython_helpers_pyx, __pyx_mstate->__pyx_n_u_g4hunter_score, __pyx_mstate->__pyx_kp_b_iso88591_1_7q_1_y_1_j_xs_q_wc_3gRq_xr_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[3])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[3] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_scripts_cython_helpers_pyx, __pyx_mstate->__pyx_n_u_g4hunter_score, __pyx_mstate->__pyx_kp_b_iso88591_1_7q_1_y_1_j_xs_q_V1HBa_wc_Q_b, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[3])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 176};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 207};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_sequence};
     __pyx_mstate_global->__pyx_codeobj_tab[4] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_scripts_cython_helpers_pyx, __pyx_mstate->__pyx_n_u_g4boost_score, __pyx_mstate->__pyx_kp_b_iso88591_7q_1_y_1_j_xs_q_uAQ_6_A_q_3a_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[4])) goto bad;
+  }
+  {
+    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 295};
+    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_sequence, __pyx_mstate->__pyx_n_u_min_len, __pyx_mstate->__pyx_n_u_max_len_obj, __pyx_mstate->__pyx_n_u_allowed_mismatches, __pyx_mstate->__pyx_n_u_gap_min_len, __pyx_mstate->__pyx_n_u_gap_max_len_obj};
+    __pyx_mstate_global->__pyx_codeobj_tab[5] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_scripts_cython_helpers_pyx, __pyx_mstate->__pyx_n_u_find_longest_intrastrand_complem, __pyx_mstate->__pyx_kp_b_iso88591_2_Qa_t3a_j_7_A_wa_a_a_a_U_2Rr_8, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[5])) goto bad;
+  }
+  {
+    const __Pyx_PyCode_New_function_description descr = {6, 0, 0, 6, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 361};
+    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_sequence, __pyx_mstate->__pyx_n_u_min_len, __pyx_mstate->__pyx_n_u_max_len_obj, __pyx_mstate->__pyx_n_u_allowed_mismatches, __pyx_mstate->__pyx_n_u_gap_min_len, __pyx_mstate->__pyx_n_u_gap_max_len_obj};
+    __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_scripts_cython_helpers_pyx, __pyx_mstate->__pyx_n_u_find_longest_interstrand_complem, __pyx_mstate->__pyx_kp_b_iso88591_2_Qa_t3a_j_7_A_wa_a_a_a_U_2Rr_8_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;
@@ -7730,6 +10141,17 @@ static CYTHON_INLINE void __Pyx__ExceptionReset(PyThreadState *tstate, PyObject 
   #endif
 }
 #endif
+
+/* DivInt[Py_ssize_t] */
+static CYTHON_INLINE Py_ssize_t __Pyx_div_Py_ssize_t(Py_ssize_t a, Py_ssize_t b, int b_is_constant) {
+    Py_ssize_t q = a / b;
+    Py_ssize_t r = a - q*b;
+    Py_ssize_t adapt_python = (b_is_constant ?
+        ((r != 0) & ((r < 0) ^ (b < 0))) :
+        ((r != 0) & ((r ^ b) < 0))
+    );
+    return q - adapt_python;
+}
 
 /* dict_setdefault (used by FetchCommonType) */
 static CYTHON_INLINE PyObject *__Pyx_PyDict_SetDefault(PyObject *d, PyObject *key, PyObject *default_value) {

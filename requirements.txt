@@ -1,7 +1,23 @@
-cython>=3.0.0
-matplotlib>=3.5.0
-requests>=2.32.3
+# ── Runtime dependencies ────────────────────────────────────────────────
+# Chromosome visualization (Visualization tab) and G4/Tm score plots.
 matplotlib>=3.9.0
+
+# Vectorized acceleration for the nucleotide scanner's base-content filter.
+# Optional at runtime (the scanner falls back to pure Python when absent) but
+# strongly recommended; matplotlib already depends on it.
+numpy>=1.23
+
+# Accurate nearest-neighbor melting temperature (Bio.SeqUtils.MeltingTemp).
+# Optional: the toolkit falls back to the Wallace rule when absent.
 biopython>=1.83
+
+# ── Build dependencies (to compile the Cython extensions) ───────────────
+# Needed only for `python setup.py build_ext --inplace`.
+cython>=3.0.0
 setuptools
 
+# ── Optional GPU acceleration (see docs/GPU.md) ─────────────────────────
+# Requires a CUDA-capable GPU; install the wheel matching your CUDA version,
+# e.g.  pip install cupy-cuda12x   (or cupy-cuda11x for CUDA 11).
+# cupy>=12.0
+# psutil   # optional: host-RAM tracking in scripts/benchmark_search.py

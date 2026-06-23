@@ -73,6 +73,84 @@ FALLBACK_COLUMN_ORDER = [
 LABEL_MODE_CHOICES = ("none", "gene", "gene+coords")
 CHROMOSOME_NUMBER_LABELS = {**{idx: str(idx) for idx in range(1, 23)}, 23: "X", 24: "Y"}
 
+# Chromosome lengths (bp) for the two bundled human assemblies, keyed by
+# chromosome number (1-22, X=23, Y=24). Used to draw each ideogram at its true
+# proportional length instead of stopping at the furthest hit.
+GRCH38_LENGTHS = {
+    1: 248956422, 2: 242193529, 3: 198295559, 4: 190214555, 5: 181538259,
+    6: 170805979, 7: 159345973, 8: 145138636, 9: 138394717, 10: 133797422,
+    11: 135086622, 12: 133275309, 13: 114364328, 14: 107043718, 15: 101991189,
+    16: 90338345, 17: 83257441, 18: 80373285, 19: 58617616, 20: 64444167,
+    21: 46709983, 22: 50818468, 23: 156040895, 24: 57227415,
+}
+T2T_LENGTHS = {
+    1: 248387328, 2: 242696752, 3: 201105948, 4: 193574945, 5: 182045439,
+    6: 172126628, 7: 160567428, 8: 146259331, 9: 150617247, 10: 134758134,
+    11: 135127769, 12: 133324548, 13: 113566686, 14: 101161492, 15: 99753195,
+    16: 96330374, 17: 84276897, 18: 80542538, 19: 61707364, 20: 66210255,
+    21: 45090682, 22: 51324926, 23: 154259566, 24: 62460029,
+}
+ASSEMBLY_LENGTHS = {"grch38": GRCH38_LENGTHS, "t2t": T2T_LENGTHS}
+# Approximate centromere position as a fraction of chromosome length. Only used
+# to place the centromere constriction in the ideogram (acrocentric 13/14/15/
+# 21/22 have small p-arms, hence small fractions).
+CENTROMERE_FRACTION = {
+    1: 0.496, 2: 0.388, 3: 0.458, 4: 0.263, 5: 0.269, 6: 0.350, 7: 0.377,
+    8: 0.311, 9: 0.311, 10: 0.297, 11: 0.395, 12: 0.266, 13: 0.155, 14: 0.161,
+    15: 0.186, 16: 0.407, 17: 0.301, 18: 0.230, 19: 0.447, 20: 0.436, 21: 0.257,
+    22: 0.295, 23: 0.391, 24: 0.182,
+}
+
+
+def chromosome_number(seq_id: str) -> int | None:
+    """Map a sequence id to a human chromosome number (1-22, X=23, Y=24)."""
+    token = (seq_id or "").strip()
+    if not token:
+        return None
+    normalized = token.split()[0]
+    match = re.match(r"NC_0*(\d+)", normalized, re.IGNORECASE)
+    if match:
+        n = int(match.group(1))
+        if 1 <= n <= 24:            # GRCh38: NC_000001..NC_000024
+            return n
+        if 60925 <= n <= 60948:     # T2T-CHM13v2.0: NC_060925..NC_060948
+            return n - 60924
+    low = normalized.lower()
+    if low.startswith("chr"):
+        suffix = normalized[3:].strip().upper()
+        if suffix == "X":
+            return 23
+        if suffix == "Y":
+            return 24
+        try:
+            n = int(suffix)
+            return n if 1 <= n <= 24 else None
+        except ValueError:
+            return None
+    try:
+        n = int(normalized)
+        return n if 1 <= n <= 24 else None
+    except ValueError:
+        return None
+
+
+def detect_assembly(seq_ids: Iterable[str]) -> str:
+    """Auto-detect assembly from accession ranges; default to GRCh38."""
+    for sid in seq_ids:
+        match = re.match(r"NC_0*(\d+)", (sid or "").strip(), re.IGNORECASE)
+        if match and 60925 <= int(match.group(1)) <= 60948:
+            return "t2t"
+    return "grch38"
+
+
+def chromosome_length(seq_id: str, assembly: str, fallback: int) -> int:
+    """True chromosome length for a sequence id, or `fallback` for scaffolds."""
+    num = chromosome_number(seq_id)
+    table = ASSEMBLY_LENGTHS.get(assembly, GRCH38_LENGTHS)
+    if num is not None and num in table:
+        return table[num]
+    return max(fallback, 1)
+
 
 @dataclass
 class DatasetMeta:
@@ -95,6 +173,7 @@ class RegionSegment:
     opacity: float
     line_style: str
     annotation: str | None
+    gene: str | None = None
 
 
 def detect_delimiter(path: Path) -> str:
@@ -287,10 +366,13 @@ def build_segment_from_row(
         if raw and str(raw).upper() != "NA": annotation = str(raw)
     category = detect_category(row)
     
+    gene_clean = (gene_value or "").strip()
+    gene_name = gene_clean if gene_clean and gene_clean.upper() != "NA" else None
+
     return RegionSegment(
         seq_id=seq_id, start=start, end=end, label=label, dataset_index=dataset_index,
         dataset_name=dataset_name, dataset_color=dataset_color, category=category,
-        opacity=opacity, line_style=line_style, annotation=annotation,
+        opacity=opacity, line_style=line_style, annotation=annotation, gene=gene_name,
     )
 
 
@@ -504,6 +586,168 @@ def render_plot(
     plt.close(fig)
 
 
+def _unique_genes_for_seq(seq_data: Dict[int, List[RegionSegment]], limit: int = 8) -> Tuple[List[str], int]:
+    """Ordered-by-position unique gene names hit on a chromosome, plus overflow count."""
+    seen: set[str] = set()
+    ordered: List[Tuple[int, str]] = []
+    for segments in seq_data.values():
+        for seg in segments:
+            if not seg.gene:
+                continue
+            for name in re.split(r"[;,/| ]+", seg.gene):
+                name = name.strip()
+                key = name.lower()
+                if name and key not in seen:
+                    seen.add(key)
+                    ordered.append((seg.start, name))
+    ordered.sort(key=lambda item: item[0])
+    names = [name for _, name in ordered]
+    if len(names) <= limit:
+        return names, 0
+    return names[:limit], len(names) - limit
+
+
+def render_karyogram(
+    grouped: Dict[str, Dict[int, List[RegionSegment]]],
+    dataset_meta: Sequence[DatasetMeta],
+    output_path: Path,
+    args: argparse.Namespace,
+    classification_mode: bool,
+    category_colors: Dict[str, str],
+    legend_entries: Sequence[Tuple[str, str]],
+    legend_title: str | None,
+    fallback_color: str,
+    assembly: str,
+) -> None:
+    """Draw horizontal human-chromosome ideograms with hits marked along them.
+
+    Each chromosome is drawn at its true proportional length with a centromere
+    constriction; hits are vertical ticks at their genomic position, coloured by
+    dataset (or functional class for a single annotated dataset). Gene names hit
+    on each chromosome are listed to the right.
+    """
+    plt.rcParams["font.family"] = args.font_family
+    plt.rcParams["font.size"] = args.font_size
+
+    seq_order = sorted(grouped, key=natural_key)
+    num_chroms = max(1, len(seq_order))
+    dataset_count = len(dataset_meta)
+    show_labels = args.label_mode in ("gene", "gene+coords") and not args.color_only
+
+    def seq_length(seq: str) -> int:
+        far = max((seg.end for d in grouped[seq].values() for seg in d), default=0)
+        return chromosome_length(seq, assembly, far)
+
+    length_map = {seq: seq_length(seq) for seq in seq_order}
+    global_max = max(length_map.values(), default=1) or 1
+
+    fig, ax = plt.subplots(figsize=(args.fig_width, args.fig_height), dpi=args.dpi)
+    right_limit = 1.34 if show_labels else 1.06
+    ax.set_xlim(-0.13, right_limit)
+    ax.set_ylim(0, num_chroms)
+    ax.axis("off")
+    if args.title:
+        fig.suptitle(args.title, fontsize=args.font_size + 4, fontweight="bold")
+
+    # Ideogram thickness adapts to the available per-row height so it never
+    # overflows neighbouring rows regardless of chromosome count / figure size.
+    row_pts = (args.fig_height / num_chroms) * 72.0
+    body_lw = max(5.0, min(24.0, row_pts * 0.40))
+    half_h = (body_lw / 2.0) * num_chroms / (72.0 * args.fig_height)
+    tick_lw = max(0.5, min(2.6, body_lw * 0.11))
+    cen_ms = max(3.0, body_lw * 0.34)
+
+    for idx, seq in enumerate(seq_order):
+        seq_data = grouped[seq]
+        y = num_chroms - idx - 0.5
+        length = length_map[seq]
+        width = 1.0 if args.scale_mode == "relative" else length / global_max
+
+        ax.text(-0.016, y, format_chromosome_label(seq), ha="right", va="center",
+                fontsize=args.font_size, fontweight="bold")
+
+        num = chromosome_number(seq)
+        cen_frac = CENTROMERE_FRACTION.get(num) if num is not None else None
+        cx = width * cen_frac if (cen_frac is not None and 0.0 < cen_frac < 1.0) else None
+        gap = min(width * 0.012, 0.008)
+        arms = [(0.0, cx - gap), (cx + gap, width)] if cx is not None else [(0.0, width)]
+
+        # Ideogram body: dark outline beneath a lighter fill, round caps = telomeres.
+        for x0, x1 in arms:
+            if x1 <= x0:
+                continue
+            ax.plot([x0, x1], [y, y], lw=body_lw + 2.2, solid_capstyle="round",
+                    color="#3a3a3a", zorder=2, alpha=args.bg_alpha)
+            ax.plot([x0, x1], [y, y], lw=body_lw, solid_capstyle="round",
+                    color=args.bg_color, zorder=2.1, alpha=args.bg_alpha)
+
+        # Hits.
+        for d_idx in range(dataset_count):
+            segments = seq_data.get(d_idx, [])
+            if not segments:
+                continue
+            ds_color = dataset_meta[d_idx].color
+            ds_opacity = dataset_meta[d_idx].opacity
+            if args.density:
+                bins = max(60, int(width * 280))
+                densities = compute_density_map(length, segments, bins=bins)
+                for b, value in enumerate(densities):
+                    if value <= 0:
+                        continue
+                    bx = width * (b + 0.5) / bins
+                    op = max(0.05, min(1.0, ds_opacity * value))
+                    ax.plot([bx, bx], [y - half_h, y + half_h], color=ds_color,
+                            lw=max(tick_lw, width / bins * 72 * args.fig_width),
+                            alpha=op, zorder=3, solid_capstyle="butt")
+                continue
+            for seg in segments:
+                if classification_mode:
+                    color = category_colors.get(seg.category, fallback_color) if seg.category else fallback_color
+                else:
+                    color = ds_color
+                pos = (seg.start + seg.end) / 2.0
+                x = max(0.0, min(width, width * pos / length))
+                ax.plot([x, x], [y - half_h, y + half_h], color=color,
+                        lw=tick_lw, alpha=max(0.1, min(1.0, seg.opacity)),
+                        zorder=3, solid_capstyle="butt")
+                if args.annotate_column and seg.annotation:
+                    ax.text(x, y + half_h + 0.04, str(seg.annotation), ha="center",
+                            va="bottom", rotation=90, fontsize=max(5, args.font_size - 5),
+                            color="#222222", zorder=5)
+
+        # Centromere marker on top of the body.
+        if cx is not None:
+            ax.plot([cx], [y], marker="o", ms=cen_ms, color="#9b1320",
+                    mec="#3a0008", mew=0.5, zorder=4)
+
+        # Gene names hit on this chromosome, listed to the right.
+        if show_labels:
+            names, overflow = _unique_genes_for_seq(seq_data)
+            if names:
+                text = ", ".join(names)
+                if overflow:
+                    text += f"  +{overflow} more"
+                ax.text(width + 0.015, y, text, ha="left", va="center",
+                        fontsize=max(6, args.font_size - 2), color="#222222")
+
+    if legend_entries:
+        handles = [patches.Rectangle((0, 0), 1, 1, facecolor=color, edgecolor="#333", lw=0.5)
+                   for _, color in legend_entries]
+        labels = [label for label, _ in legend_entries]
+        # Gene labels already occupy the right margin, so put the legend along the
+        # bottom whenever they are shown to avoid overlapping them.
+        if args.legend_pos == "bottom" or show_labels:
+            ax.legend(handles, labels, title=legend_title, loc="upper center",
+                      bbox_to_anchor=(0.5, -0.02), frameon=False, ncol=min(len(labels), 5))
+        else:
+            ax.legend(handles, labels, title=legend_title, loc="upper left",
+                      bbox_to_anchor=(1.005, 1.0), frameon=False)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, format=args.output_format, dpi=args.dpi, bbox_inches="tight")
+    plt.close(fig)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render publication-ready chromosome tracks.")
     parser.add_argument("inputs", nargs="+", help="TSV/CSV files to visualize.")
@@ -532,6 +776,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bg-color", default="#f8f8f8")
     parser.add_argument("--bg-alpha", type=float, default=1.0)
     parser.add_argument("--legend-pos", choices=["right", "bottom"], default="right")
+    parser.add_argument(
+        "--orientation", choices=["horizontal", "vertical"], default="horizontal",
+        help="horizontal: human-chromosome ideograms with centromeres (default); "
+             "vertical: legacy stacked bar tracks.",
+    )
+    parser.add_argument(
+        "--assembly", choices=["auto", "grch38", "t2t"], default="auto",
+        help="Reference assembly for true chromosome lengths (default: auto-detect).",
+    )
     return parser
 
 
@@ -632,11 +885,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         legend_entries = [(meta.name, meta.color) for meta in dataset_meta]
         legend_title = "Data source"
 
-    render_plot(
-        grouped, dataset_meta, Path(args.output), args, classification_mode,
-        CLASS_COLOR_MAP, legend_entries, legend_title, DEFAULT_SINGLE_COLOR
-    )
-    
+    if args.orientation == "horizontal":
+        assembly = args.assembly
+        if assembly == "auto":
+            assembly = detect_assembly(grouped.keys())
+        render_karyogram(
+            grouped, dataset_meta, Path(args.output), args, classification_mode,
+            CLASS_COLOR_MAP, legend_entries, legend_title, DEFAULT_SINGLE_COLOR, assembly,
+        )
+    else:
+        render_plot(
+            grouped, dataset_meta, Path(args.output), args, classification_mode,
+            CLASS_COLOR_MAP, legend_entries, legend_title, DEFAULT_SINGLE_COLOR
+        )
+
     print(f"Wrote visualization to {args.output}")
     return 0
 

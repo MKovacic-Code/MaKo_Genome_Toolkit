@@ -8,7 +8,7 @@ import csv
 import os
 import re
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple, Set
 
@@ -75,6 +75,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--motif-self-comp", action="append", default=[])
     parser.add_argument("--require-palindrome", action="store_true")
     parser.add_argument("--palindrome-min-len", type=int, default=8)
+    parser.add_argument("--require-intrastrand", action="store_true")
+    parser.add_argument("--intrastrand-min-len", type=int, default=6)
+    parser.add_argument("--intrastrand-max-len", type=int, default=None)
+    parser.add_argument("--intrastrand-mismatches", type=int, default=0)
+    parser.add_argument("--intrastrand-gap-min", type=int, default=0)
+    parser.add_argument("--intrastrand-gap-max", type=int, default=None)
+    parser.add_argument("--require-interstrand", action="store_true")
+    parser.add_argument("--interstrand-min-len", type=int, default=6)
+    parser.add_argument("--interstrand-max-len", type=int, default=None)
+    parser.add_argument("--interstrand-mismatches", type=int, default=0)
+    parser.add_argument("--interstrand-gap-min", type=int, default=0)
+    parser.add_argument("--interstrand-gap-max", type=int, default=None)
     parser.add_argument("--non-overlapping", action="store_true")
     parser.add_argument("--strand", dest="strand_selections", action="append", choices=["forward", "reverse", "both", "combined"], default=[])
     parser.add_argument("--combined-forward-len", type=int, default=0)
@@ -142,6 +154,8 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             coord_transform=None,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
+            intrastrand_config=config.get("intrastrand_config"),
+            interstrand_config=config.get("interstrand_config"),
             region_filters=config["region_filters"],
             non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
@@ -165,6 +179,8 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             coord_transform=rev_transform,
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
+            intrastrand_config=config.get("intrastrand_config"),
+            interstrand_config=config.get("interstrand_config"),
             region_filters=config["region_filters"],
             non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
@@ -184,6 +200,8 @@ def _scan_sequence_worker(payload: Tuple[str, str]) -> Tuple[str, List[Dict[str,
             repeat_constraints=config["repeat_constraints"],
             exclude_motifs=config["exclude_nt_motifs"],
             palindrome_config=config["palindrome_config"],
+            intrastrand_config=config.get("intrastrand_config"),
+            interstrand_config=config.get("interstrand_config"),
             region_filters=config["region_filters"],
             non_overlapping=False,  # We filter non-overlapping at the end of combined search
             max_motif_mismatches=config["nt_motif_mismatches"],
@@ -332,7 +350,23 @@ def main():
     palindrome_config = {
         "enabled": args.require_palindrome,
         "min_len": args.palindrome_min_len,
-    } if args.require_palindrome else None
+    }
+    intrastrand_config = {
+        "enabled": args.require_intrastrand,
+        "min_len": args.intrastrand_min_len,
+        "max_len": args.intrastrand_max_len,
+        "mismatches": args.intrastrand_mismatches,
+        "gap_min": args.intrastrand_gap_min,
+        "gap_max": args.intrastrand_gap_max,
+    }
+    interstrand_config = {
+        "enabled": args.require_interstrand,
+        "min_len": args.interstrand_min_len,
+        "max_len": args.interstrand_max_len,
+        "mismatches": args.interstrand_mismatches,
+        "gap_min": args.interstrand_gap_min,
+        "gap_max": args.interstrand_gap_max,
+    }
     
     frames = iter_frames(args.frame)
     pep_motifs = build_pep_motif_patterns(args.pep_motif)
@@ -354,6 +388,8 @@ def main():
         "self_comp_constraints": self_comp_constraints,
         "region_filters": region_filters,
         "palindrome_config": palindrome_config,
+        "intrastrand_config": intrastrand_config,
+        "interstrand_config": interstrand_config,
         
         "combined_forward_len": args.combined_forward_len or args.window,
         "combined_reverse_len": args.combined_reverse_len or args.window,
@@ -400,18 +436,45 @@ def main():
             continue
         sequences.append((seq_id, seq))
         
+    total_bases = sum(len(seq) for _, seq in sequences)
+    completed_bases = 0
     if worker_count == 1:
         _init_worker(config)
         for index, (seq_id, seq) in enumerate(sequences, 1):
-            print(f"[scanner] Processing {seq_id} ({index}/{len(sequences)})")
+            completed_bases += len(seq)
+            percent = (completed_bases / total_bases) * 100 if total_bases > 0 else 100.0
+            print(
+                f"[scanner] Progress: {completed_bases}/{total_bases} bp ({percent:.2f}%) - "
+                f"Processing {seq_id} ({index}/{len(sequences)})",
+                flush=True
+            )
             _, hits = _scan_sequence_worker((seq_id, seq))
             all_hits.extend(hits)
     else:
         print(f"[scanner] Processing {len(sequences)} sequences with {worker_count} workers...")
         with ProcessPoolExecutor(max_workers=worker_count, initializer=_init_worker, initargs=(config,)) as pool:
-            for index, (seq_id, hits) in enumerate(pool.map(_scan_sequence_worker, sequences), 1):
+            future_to_seq = {
+                pool.submit(_scan_sequence_worker, item): item[0]
+                for item in sequences
+            }
+            for index, future in enumerate(as_completed(future_to_seq), 1):
+                seq_id = future_to_seq[future]
+                res_seq_id, hits = future.result()
                 all_hits.extend(hits)
-                print(f"[scanner] Completed sequence {index}/{len(sequences)}")
+                
+                # Retrieve sequence length
+                seq_len = 0
+                for s_id, s_seq in sequences:
+                    if s_id == seq_id:
+                        seq_len = len(s_seq)
+                        break
+                completed_bases += seq_len
+                percent = (completed_bases / total_bases) * 100 if total_bases > 0 else 100.0
+                print(
+                    f"[scanner] Progress: {completed_bases}/{total_bases} bp ({percent:.2f}%) - "
+                    f"Completed sequence {seq_id} ({index}/{len(sequences)})",
+                    flush=True
+                )
                 
     if args.non_overlapping:
         print(f"[scanner] Filtering {len(all_hits)} hits for non-overlapping regions...")
@@ -427,7 +490,10 @@ def main():
         "nt_subwindow_start", "nt_subwindow_end", "nt_motif_hits", "nt_base_content", "nt_max_repeats",
         "pep_subwindow_start", "pep_subwindow_end", "pep_frame", "peptide_sequence", 
         "matched_pep_motifs", "codon_efficiency", "is_self_complementary",
-        "palindrome_hairpin_sequence", "palindrome_hairpin_length", "pep_subwindow_sequence", "window_sequence"
+        "palindrome_hairpin_sequence", "palindrome_hairpin_length",
+        "intrastrand_sequence", "intrastrand_length", "intrastrand_start1", "intrastrand_end1", "intrastrand_start2", "intrastrand_end2",
+        "interstrand_sequence", "interstrand_length", "interstrand_start1", "interstrand_end1", "interstrand_start2", "interstrand_end2",
+        "pep_subwindow_sequence", "window_sequence"
     ]
     
     with out_path.open("w", newline="", encoding="utf-8") as f:

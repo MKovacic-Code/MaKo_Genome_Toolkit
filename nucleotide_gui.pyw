@@ -93,7 +93,6 @@ BUILTIN_CHEMISTRY_PROFILES = {
 SCAN_SCRIPT = SCRIPTS_DIR / "nt_sequence_search.py"
 ANALYSIS_SCRIPT = SCRIPTS_DIR / "nt_sequence_G4_TD_analysis.py"
 ANNOTATION_SCRIPT = SCRIPTS_DIR / "nt_sequence_annotation.py"
-VISUALIZER_SCRIPT = SCRIPTS_DIR / "chromosome_visualizer.py"
 PUBLICATION_VIZ_SCRIPT = SCRIPTS_DIR / "publication_visualizer.py"
 GENE_SCRIPT = SCRIPTS_DIR / "exctract_genes_nt_sequence_annotated.py"
 TRIPLEX_SCRIPT = SCRIPTS_DIR / "triplex_search.py"
@@ -197,12 +196,16 @@ class ScannerGUI:
         "vector_annotation_column", "vector_label_mode",
         "vector_seq_ids", "vector_region_filters", "vector_gene_filters",
         "palindrome_min_len", "top_oligos",
+        "intrastrand_min_len", "intrastrand_max_len",
+        "intrastrand_mismatches", "intrastrand_gap_min", "intrastrand_gap_max",
+        "interstrand_min_len", "interstrand_max_len",
+        "interstrand_mismatches", "interstrand_gap_min", "interstrand_gap_max",
     }
 
     def __init__(self, root: Tk) -> None:
         self.root = root
         self.root.title("MaKo Genome Toolkit")
-        self.root.geometry("1700x1024")
+        self._apply_initial_geometry(1700, 1024)
 
         # Set Window Icon
         icon_path = ROOT_DIR / "assets" / "backpack_icon.ico"
@@ -246,9 +249,30 @@ class ScannerGUI:
         self.temperature_var = StringVar(value="25")  # Celsius
         self.require_palindrome_var = BooleanVar(value=False)
         self.palindrome_min_len_var = StringVar(value="8")
+        self.require_intrastrand_var = BooleanVar(value=False)
+        self.intrastrand_min_len_var = StringVar(value="6")
+        self.intrastrand_max_len_var = StringVar(value="")
+        self.intrastrand_mismatches_var = StringVar(value="0")
+        self.intrastrand_gap_min_var = StringVar(value="0")
+        self.intrastrand_gap_max_var = StringVar(value="")
+        self.require_interstrand_var = BooleanVar(value=False)
+        self.interstrand_min_len_var = StringVar(value="6")
+        self.interstrand_max_len_var = StringVar(value="")
+        self.interstrand_mismatches_var = StringVar(value="0")
+        self.interstrand_gap_min_var = StringVar(value="0")
+        self.interstrand_gap_max_var = StringVar(value="")
         self.top_oligos_var = StringVar(value="1")
         self.structure_only_var = BooleanVar(value=False)
         self.analysis_summary_path: str | None = None
+        # Nucleotide scanner: RNA/DNA handling + optional post-scan G4Hunter filter.
+        self.scan_sequence_type_var = StringVar(value="auto")
+        self.scan_min_g4hunter_var = StringVar(value="")
+        # Execution engine (CPU vs CUDA GPU) and the detected device status.
+        self.scan_engine_var = StringVar(value="auto")
+        self.scan_gpu_kernels_var = BooleanVar(value=False)
+        self.engine_status_var = StringVar(value="Compute device: detecting…")
+        self._gpu_caps: Dict[str, object] | None = None
+        self._gpu_kernels_ok: bool | None = None
         self.min_g4hunter_filter_var = StringVar()
         self.min_g4boost_filter_var = StringVar()
         self.min_tm_wallace_filter_var = StringVar()
@@ -283,9 +307,6 @@ class ScannerGUI:
         self.viz_output_var = StringVar()
         self._changing_viz_path = False
         self.viz_output_var.trace_add("write", lambda *_: self._on_viz_var_change())
-        self.viz_format_var = StringVar(value="auto")
-        self.viz_scope_var = StringVar(value="regions")
-        self.viz_label_mode_var = StringVar(value="name")
         self.process_hits_var.trace_add("write", lambda *_: self._sync_process_to_viz())
         self.processed_hits_var.trace_add("write", lambda *_: self._sync_process_to_viz())
         self.combined_strand_var.trace_add("write", lambda *_: self._toggle_combined_fields())
@@ -370,6 +391,8 @@ class ScannerGUI:
 
         self.vector_input_var = StringVar()
         self.vector_output_var = StringVar()
+        self.vector_orientation_var = StringVar(value="horizontal")
+        self.vector_assembly_var = StringVar(value="auto")
         self.vector_label_mode_var = StringVar(value="gene+coords")
         self.vector_density_var = BooleanVar(value=False)
         self.vector_annotate_var = BooleanVar(value=False)
@@ -423,6 +446,7 @@ class ScannerGUI:
         self.chemistry_profiles = self._load_chemistry_profiles()
         self._persisted_string_vars: dict[str, StringVar] = {
             "output_name": self.output_name_var,
+            "scan_engine": self.scan_engine_var,
             "genome_fasta": self.fasta_var,
             "gbff_path": self.gbff_var,
             "gff3_path": self.gff3_var,
@@ -436,6 +460,16 @@ class ScannerGUI:
             "selected_genome": self.selected_genome_var,
             "peptide_fasta": self.peptide_fasta_var,
             "palindrome_min_len": self.palindrome_min_len_var,
+            "intrastrand_min_len": self.intrastrand_min_len_var,
+            "intrastrand_max_len": self.intrastrand_max_len_var,
+            "intrastrand_mismatches": self.intrastrand_mismatches_var,
+            "intrastrand_gap_min": self.intrastrand_gap_min_var,
+            "intrastrand_gap_max": self.intrastrand_gap_max_var,
+            "interstrand_min_len": self.interstrand_min_len_var,
+            "interstrand_max_len": self.interstrand_max_len_var,
+            "interstrand_mismatches": self.interstrand_mismatches_var,
+            "interstrand_gap_min": self.interstrand_gap_min_var,
+            "interstrand_gap_max": self.interstrand_gap_max_var,
             "top_oligos": self.top_oligos_var,
             "vector_annotation_column": self.vector_annotation_column_var,
             "vector_seq_ids": self.vector_seq_ids_var,
@@ -445,10 +479,13 @@ class ScannerGUI:
         }
         self._persisted_option_vars: dict[str, BooleanVar] = {
             "require_palindrome": self.require_palindrome_var,
+            "require_intrastrand": self.require_intrastrand_var,
+            "require_interstrand": self.require_interstrand_var,
             "non_overlapping": self.non_overlapping_var,
             "structure_only": self.structure_only_var,
             "vector_density_view": self.vector_density_var,
             "vector_annotate_hits": self.vector_annotate_var,
+            "scan_gpu_kernels": self.scan_gpu_kernels_var,
         }
 
         refresh_cb = lambda *_: self._refresh_output_paths()
@@ -491,13 +528,159 @@ class ScannerGUI:
         self._load_defaults_async()
         self._build_layout()
         self._refresh_output_paths()
+        self._update_engine_status()
+        self._detect_engine_status_async()
+
+    def _apply_initial_geometry(self, width: int, height: int) -> None:
+        """Open at the requested size but never larger than the screen, centred
+        horizontally and placed slightly above vertical centre. A sensible
+        minsize keeps the layout usable when the user shrinks the window."""
+        self.root.update_idletasks()
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        width = min(width, screen_w - 80)
+        height = min(height, screen_h - 120)
+        x = max(0, (screen_w - width) // 2)
+        y = max(0, (screen_h - height) // 3)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+        self.root.minsize(1100, 700)
+
+    def _center_toplevel(self, window: Toplevel, width: int, height: int) -> None:
+        """Size a popup and centre it over the main window (clamped to screen)."""
+        window.update_idletasks()
+        screen_w = window.winfo_screenwidth()
+        screen_h = window.winfo_screenheight()
+        width = min(width, screen_w - 60)
+        height = min(height, screen_h - 100)
+        try:
+            base_x = self.root.winfo_rootx()
+            base_y = self.root.winfo_rooty()
+            base_w = self.root.winfo_width()
+            base_h = self.root.winfo_height()
+            x = max(0, base_x + (base_w - width) // 2)
+            y = max(0, base_y + (base_h - height) // 2)
+        except Exception:
+            x = max(0, (screen_w - width) // 2)
+            y = max(0, (screen_h - height) // 3)
+        window.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _detect_engine_status_async(self) -> None:
+        """Probe CUDA availability in a background thread (CuPy import is slow) and
+        update the engine status label when done."""
+        def worker():
+            caps: Dict[str, object]
+            kernels_ok = False
+            try:
+                import nt_sequence_search as _nss
+
+                caps = _nss.detect_gpu_capabilities()
+            except Exception as exc:
+                caps = {"available": False, "reason": exc.__class__.__name__}
+            if caps.get("available"):
+                try:
+                    import mako_gpu
+
+                    kernels_ok = bool(mako_gpu.kernels_available())
+                except Exception:
+                    kernels_ok = False
+            self._gpu_caps = caps
+            self._gpu_kernels_ok = kernels_ok
+            try:
+                self.root.after(0, self._update_engine_status)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _set_engine_label_color(self, color: str) -> None:
+        label = getattr(self, "engine_status_label", None)
+        if label is not None:
+            try:
+                label.configure(fg=color)
+            except Exception:
+                pass
+
+    def _update_engine_status(self) -> None:
+        """Show the engine that a scan will actually use, given the user's choice
+        and the detected device. GPU acceleration needs both a device and a
+        working NVRTC, so a GPU that cannot compile kernels reports CPU."""
+        caps = self._gpu_caps
+        if caps is None:
+            self.engine_status_var.set("Compute device: detecting…")
+            self._set_engine_label_color("#0056a3")
+            return
+        selection = self.scan_engine_var.get()
+        gpu_present = bool(caps.get("available"))
+        kernels_ok = bool(self._gpu_kernels_ok)
+        device = caps.get("device") if gpu_present else None
+        wants_gpu = selection in ("auto", "gpu")
+
+        if wants_gpu and gpu_present and kernels_ok:
+            path = "custom CUDA kernels" if self.scan_gpu_kernels_var.get() else "CuPy prefilter"
+            self.engine_status_var.set(f"Active engine: GPU — {device}  ({path})")
+            self._set_engine_label_color("#2e7d32")
+        elif wants_gpu and gpu_present and not kernels_ok:
+            self.engine_status_var.set(
+                f"Active engine: CPU — GPU detected ({device}) but CUDA kernels cannot "
+                "compile. Fix: pip install cupy-cuda12x[ctk] (Blackwell needs CUDA 12.8+)."
+            )
+            self._set_engine_label_color("#c0392b")
+        elif selection == "gpu" and not gpu_present:
+            reason = str(caps.get("reason", ""))
+            msg = f"Active engine: CPU — GPU requested but no CUDA device ({reason})."
+            if "cupy" in reason.lower():
+                # The most common cause: CuPy is missing from the interpreter that
+                # runs the app (the venv), even if it is installed elsewhere.
+                msg += (
+                    "  CuPy is not installed in this environment — install it into "
+                    "the venv: .venv\\Scripts\\python -m pip install \"cupy-cuda12x[ctk]\""
+                )
+            self.engine_status_var.set(msg)
+            self._set_engine_label_color("#c0392b")
+        else:
+            suffix = "" if gpu_present else " — no CUDA device"
+            self.engine_status_var.set(f"Active engine: CPU{suffix}")
+            self._set_engine_label_color("#0056a3")
+
+    # Widget classes that scroll themselves and must keep their own wheel events.
+    _SELF_SCROLLING_CLASSES = frozenset({"Text", "Treeview", "Listbox"})
+
+    def _on_global_mousewheel(self, event):
+        """Scroll the main content canvas from the wheel, without hijacking
+        self-scrolling widgets (Run Log, table viewers, listboxes) or dialogs."""
+        canvas = getattr(self, "_main_canvas", None)
+        if canvas is None:
+            return None
+        widget = event.widget
+        try:
+            if widget.winfo_toplevel() is not self.root:
+                return None  # a separate window → let it handle its own scrolling
+            if widget.winfo_class() in self._SELF_SCROLLING_CLASSES:
+                return None  # the widget's own class binding already scrolled it
+        except Exception:
+            return None
+        num = getattr(event, "num", 0)
+        if num == 4:            # X11 wheel up
+            scroll = -1
+        elif num == 5:          # X11 wheel down
+            scroll = 1
+        elif event.delta:       # Windows / macOS (multiples of 120)
+            scroll = int(-event.delta / 120)
+        else:
+            scroll = 0
+        if scroll:
+            try:
+                canvas.yview_scroll(scroll, "units")
+            except Exception:
+                pass
+        return "break"
 
     def _build_layout(self) -> None:
         outer = Frame(self.root)
         outer.pack(fill=BOTH, expand=True)
 
         log_frame = LabelFrame(outer, text="Run Log")
-        log_frame.pack(side=BOTTOM, fill=X, padx=10, pady=(0, 5))
+        log_frame.pack(side=BOTTOM, fill=X, padx=6, pady=(0, 4))
         self.log_box = scrolledtext.ScrolledText(log_frame, wrap="word", height=8)
         self.log_box.pack(fill=BOTH, expand=True)
         self.log_box.configure(state="disabled")
@@ -516,10 +699,10 @@ class ScannerGUI:
         scrollbar.pack(side=RIGHT, fill="y")
 
         content = Frame(canvas)
-        canvas.create_window((0, 0), window=content, anchor="nw")
+        content_window = canvas.create_window((0, 0), window=content, anchor="nw")
 
         top_panel = Frame(content)
-        top_panel.pack(fill=BOTH, expand=False, padx=10, pady=(10, 0))
+        top_panel.pack(fill=BOTH, expand=False, padx=8, pady=(8, 0))
         
         left_top = Frame(top_panel)
         left_top.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
@@ -527,13 +710,38 @@ class ScannerGUI:
         right_top.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 0))
 
         self._build_genome_selector(left_top)
+        self._build_profile_selector(left_top)
         self._build_output_panel(right_top)
 
-        def _configure_scroll(event):
+        def _configure_scroll(event=None):
+            # Content changed size: keep the scrolled window at least as tall as
+            # the viewport (fills the bottom gap) but grow with the content so the
+            # scrollregion always covers everything.
+            req_h = content.winfo_reqheight()
+            view_h = canvas.winfo_height()
+            canvas.itemconfigure(content_window, height=max(view_h, req_h))
             canvas.configure(scrollregion=canvas.bbox("all"))
 
+        def _sync_content_to_canvas(event):
+            # Stretch the scrolled content to the full canvas width (removes the
+            # right-hand empty gutter) and at least the canvas height (removes the
+            # bottom empty band), while still allowing taller content to scroll.
+            req_h = content.winfo_reqheight()
+            canvas.itemconfigure(
+                content_window, width=event.width, height=max(event.height, req_h)
+            )
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        self._main_canvas = canvas
+        self._refresh_main_scroll = _configure_scroll
         content.bind("<Configure>", _configure_scroll)
-        canvas.bind_all("<MouseWheel>", lambda event: canvas.yview_scroll(int(-event.delta / 120), "units"))
+        canvas.bind("<Configure>", _sync_content_to_canvas)
+        # Drive the main canvas from the wheel anywhere in the main window, but
+        # never steal the wheel from self-scrolling widgets (the Run Log, table
+        # viewers, listboxes) or from separate dialog windows.
+        canvas.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
+        canvas.bind_all("<Button-4>", self._on_global_mousewheel, add="+")  # X11 wheel up
+        canvas.bind_all("<Button-5>", self._on_global_mousewheel, add="+")  # X11 wheel down
 
         style = ttk.Style()
         style.configure(
@@ -542,11 +750,11 @@ class ScannerGUI:
         )
         style.configure(
             "GenomeNotebook.TNotebook.Tab",
-            padding=(18, 10),
+            padding=(12, 7),
             font=("Segoe UI", 11, "bold"),
         )
         notebook = ttk.Notebook(content, style="GenomeNotebook.TNotebook")
-        notebook.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        notebook.pack(fill=BOTH, expand=True, padx=6, pady=(4, 6))
         def _on_tab_change(event=None):
             self._run_file_picker_validators()
             current_tab_name = notebook.select()
@@ -563,6 +771,18 @@ class ScannerGUI:
                             if info:
                                 wrapper._pack_info = {k: v for k, v in info.items() if k not in ['in']}
                         wrapper.pack_forget()
+            try:
+                if notebook.tab(current_tab_name, "text") == "Combined Search":
+                    self._update_combined_summary()
+            except Exception:
+                pass
+            # Recompute the scroll region for the freshly shown tab and reset to
+            # the top so the new content is always reachable by the scrollbar.
+            self.root.after_idle(_configure_scroll)
+            try:
+                canvas.yview_moveto(0.0)
+            except Exception:
+                pass
 
         notebook.bind("<<NotebookTabChanged>>", _on_tab_change)
 
@@ -612,31 +832,7 @@ class ScannerGUI:
         # Run Log is now pinned to the bottom of the window (created above)
 
     def _setup_sync_bindings(self):
-        def _sync(source, target):
-            if not source or not target:
-                return
-            src_text = source.get("1.0", "end-1c")
-            if target.get("1.0", "end-1c") != src_text:
-                target.delete("1.0", "end")
-                target.insert("1.0", src_text)
-
-        pairs = [
-            (self.motif_widget, self.combined_nt_motif_widget),
-            (self.exclude_motif_widget, self.combined_exclude_nt_widget),
-            (self.base_widget, self.combined_base_widget),
-            (self.repeat_widget, self.combined_repeat_widget),
-            (self.forward_motif_widget, self.combined_forward_motif_widget),
-            (self.reverse_motif_widget, self.combined_reverse_motif_widget),
-            (self.peptide_motif_widget, self.combined_pep_motif_widget),
-            (self.peptide_exclude_widget, self.combined_exclude_pep_widget),
-            (self.amino_content_widget, self.combined_amino_content_widget),
-            (self.peptide_repeat_widget, self.combined_peptide_repeat_widget),
-        ]
-
-        for w1, w2 in pairs:
-            if w1 and w2:
-                w1.bind("<KeyRelease>", lambda e, s=w1, t=w2: _sync(s, t))
-                w2.bind("<KeyRelease>", lambda e, s=w2, t=w1: _sync(s, t))
+        pass
 
     def _add_tab_banner(self, parent: Frame, title: str, color: str) -> None:
         spacer = Frame(parent, height=6, bg=color)
@@ -681,6 +877,38 @@ class ScannerGUI:
         combo.bind("<<ComboboxSelected>>", self._on_genome_combo_selected)
         self.genome_combo = combo
         Button(row, text="Open folder", command=self._open_selected_genome_dir).grid(row=0, column=2, sticky="e")
+
+    def _build_profile_selector(self, parent: Frame) -> None:
+        frame = LabelFrame(parent, text="Unified Search Profile")
+        frame.pack(fill=BOTH, expand=True, pady=(10, 0))
+        
+        hint_row = Frame(frame)
+        hint_row.pack(fill="x", padx=8, pady=(4, 6))
+        Label(
+            hint_row,
+            text="Load, save, or delete configurations across all tabs.",
+            justify=LEFT,
+            anchor="w",
+        ).pack(anchor="w")
+        
+        row = Frame(frame)
+        row.pack(fill="x", padx=8, pady=(0, 6))
+        Label(row, text="Profile:", width=18, anchor="w").pack(side=LEFT, padx=(0, 8))
+        
+        self.profile_selector = ttk.Combobox(
+            row,
+            state="readonly",
+            textvariable=self.chemistry_profile_var,
+            width=30,
+        )
+        self.profile_selector.pack(side=LEFT, fill="x", expand=True, padx=(0, 6))
+        
+        ttk.Button(row, text="Apply", command=self._apply_selected_profile).pack(side=LEFT, padx=2)
+        ttk.Button(row, text="Save current…", command=self._prompt_save_profile).pack(side=LEFT, padx=2)
+        ttk.Button(row, text="Delete", command=self._delete_selected_profile).pack(side=LEFT, padx=2)
+        
+        self._profile_display_to_key = {}
+        self._refresh_profile_options()
 
     def _open_selected_genome_dir(self) -> None:
         directory = self._get_genome_data_dir()
@@ -1062,22 +1290,49 @@ class ScannerGUI:
             self._add_labeled_entry(combined_box, "Overlap:", self.combined_overlap_var, 10),
         ]
 
-        # Reactive Oligonucleotide View
-        demo_frame = LabelFrame(right_col, text="Reactive Oligonucleotide Sequence Scheme")
-        demo_frame.pack(fill="x", pady=(0, 4))
+        engine_box = LabelFrame(scan_section, text="Execution engine (CPU / GPU)")
+        engine_box.pack(fill=BOTH, pady=(6, 4))
+        eng_row = Frame(engine_box)
+        eng_row.pack(fill=X, pady=2)
+        Label(eng_row, text="Engine:", width=14, anchor="w").pack(side=LEFT)
+        for text, value in (("Auto", "auto"), ("CPU", "cpu"), ("GPU", "gpu")):
+            Radiobutton(
+                eng_row, text=text, value=value, variable=self.scan_engine_var,
+                command=self._update_engine_status,
+            ).pack(side=LEFT, padx=(0, 6))
+        Checkbutton(
+            engine_box, text="Use custom CUDA kernels (advanced; validate first)",
+            variable=self.scan_gpu_kernels_var, command=self._update_engine_status,
+        ).pack(anchor="w", pady=(2, 0))
+        self.engine_status_label = Label(
+            engine_box, textvariable=self.engine_status_var, wraplength=320,
+            justify=LEFT, anchor="w", fg="#0056a3",
+        )
+        self.engine_status_label.pack(anchor="w", fill=X, pady=(2, 0))
+
+        seqtype_box = LabelFrame(scan_section, text="RNA support & G4Hunter filter")
+        seqtype_box.pack(fill=BOTH, pady=(6, 4))
+        st_row = Frame(seqtype_box)
+        st_row.pack(fill=X, pady=2)
+        Label(st_row, text="Sequence type:", width=14, anchor="w").pack(side=LEFT)
+        ttk.Combobox(
+            st_row, textvariable=self.scan_sequence_type_var, state="readonly",
+            values=("auto", "dna", "rna"), width=8,
+        ).pack(side=LEFT, padx=(2, 0))
         Label(
-            demo_frame,
-            text="Representative motif sequence based on your first Motif IUPAC rule:",
-            justify=LEFT,
-        ).pack(anchor="w", pady=(1, 2))
-        self.oligonucleotide_demo_var = StringVar(value="[No Motif Entered]")
+            seqtype_box,
+            text="RNA (or auto-detected U, e.g. viral RNA) analyses U as T and reports sequences using U.",
+            wraplength=240, justify=LEFT, fg="#555555",
+        ).pack(anchor="w", pady=(0, 4))
+        g4_row = Frame(seqtype_box)
+        g4_row.pack(fill=X, pady=2)
+        Label(g4_row, text="Min G4Hunter:", width=14, anchor="w").pack(side=LEFT)
+        Entry(g4_row, textvariable=self.scan_min_g4hunter_var, width=8).pack(side=LEFT, padx=(2, 0))
         Label(
-            demo_frame,
-            textvariable=self.oligonucleotide_demo_var,
-            font=("Consolas", 11, "bold"),
-            fg="#0f766e",
-            justify=LEFT,
-            wraplength=400,
+            seqtype_box,
+            text="Optional post-scan filter: keep only hits whose matched motif scores >= this "
+                 "(e.g. 1.0 for G4-prone). Blank = off.",
+            wraplength=240, justify=LEFT, fg="#555555",
         ).pack(anchor="w", pady=(0, 2))
 
         container = LabelFrame(right_col, text="Advanced Filters & Constraints")
@@ -1111,8 +1366,6 @@ class ScannerGUI:
         )
         if self._saved_motif_text:
             self.motif_widget.insert("1.0", self._saved_motif_text)
-            
-        self.motif_widget.bind("<KeyRelease>", self._update_reactive_oligo)
             
         exclude_help = (
             "Enter one PATTERN per line to disqualify windows containing that motif. "
@@ -1266,22 +1519,6 @@ class ScannerGUI:
             variable=self.non_overlapping_var,
         ).pack(anchor="w", pady=(2, 2))
 
-        profile_frame = Frame(scan_section)
-        profile_frame.pack(fill=BOTH, pady=(6, 0))
-        Label(profile_frame, text="Chemistry profile:").pack(side=LEFT, padx=(0, 4))
-        self.profile_selector = ttk.Combobox(
-            profile_frame,
-            textvariable=self.chemistry_profile_var,
-            state="readonly",
-            width=22,
-        )
-        self.profile_selector.pack(side=LEFT, padx=(0, 4))
-        ttk.Button(profile_frame, text="Apply", command=self._apply_selected_profile).pack(side=LEFT, padx=2)
-        ttk.Button(profile_frame, text="Save current…", command=self._prompt_save_profile).pack(side=LEFT, padx=2)
-        ttk.Button(profile_frame, text="Delete", command=self._delete_selected_profile).pack(side=LEFT, padx=2)
-        self._profile_display_to_key: Dict[str, str] = {}
-        self._refresh_profile_options()
-
         palindrome_frame = LabelFrame(scan_section, text="Palindromic Filter")
         palindrome_frame.pack(fill=BOTH, pady=(6, 0))
         Checkbutton(
@@ -1297,10 +1534,54 @@ class ScannerGUI:
             "Optional: windows must contain a palindrome at least this long. Leave blank to skip filtering.",
         )
 
-        profile_btn_frame = Frame(scan_section)
-        profile_btn_frame.pack(fill=X, pady=(10, 0))
-        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("nucleotide")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
-        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("nucleotide")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
+        comp_frame = LabelFrame(scan_section, text="Interstrand & Intrastrand Complementary Filters")
+        comp_frame.pack(fill=BOTH, pady=(6, 0))
+        
+        # Intrastrand
+        Checkbutton(
+            comp_frame,
+            text="Require intrastrand complement (inverted repeat)",
+            variable=self.require_intrastrand_var,
+        ).pack(anchor="w")
+        
+        intra_row = Frame(comp_frame)
+        intra_row.pack(fill=X, pady=1)
+        Label(intra_row, text="Min length:", width=10, anchor="w").pack(side=LEFT, padx=(6, 2))
+        Entry(intra_row, textvariable=self.intrastrand_min_len_var, width=5).pack(side=LEFT)
+        Label(intra_row, text="Max length:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(intra_row, textvariable=self.intrastrand_max_len_var, width=5).pack(side=LEFT)
+        Label(intra_row, text="Mismatches:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(intra_row, textvariable=self.intrastrand_mismatches_var, width=4).pack(side=LEFT)
+
+        intra_gap_row = Frame(comp_frame)
+        intra_gap_row.pack(fill=X, pady=(1, 3))
+        Label(intra_gap_row, text="Min gap:", width=10, anchor="w").pack(side=LEFT, padx=(6, 2))
+        Entry(intra_gap_row, textvariable=self.intrastrand_gap_min_var, width=5).pack(side=LEFT)
+        Label(intra_gap_row, text="Max gap:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(intra_gap_row, textvariable=self.intrastrand_gap_max_var, width=5).pack(side=LEFT)
+        
+        # Interstrand
+        Checkbutton(
+            comp_frame,
+            text="Require interstrand complement (direct repeat)",
+            variable=self.require_interstrand_var,
+        ).pack(anchor="w", pady=(4, 0))
+        
+        inter_row = Frame(comp_frame)
+        inter_row.pack(fill=X, pady=1)
+        Label(inter_row, text="Min length:", width=10, anchor="w").pack(side=LEFT, padx=(6, 2))
+        Entry(inter_row, textvariable=self.interstrand_min_len_var, width=5).pack(side=LEFT)
+        Label(inter_row, text="Max length:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(inter_row, textvariable=self.interstrand_max_len_var, width=5).pack(side=LEFT)
+        Label(inter_row, text="Mismatches:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(inter_row, textvariable=self.interstrand_mismatches_var, width=4).pack(side=LEFT)
+
+        inter_gap_row = Frame(comp_frame)
+        inter_gap_row.pack(fill=X, pady=(1, 3))
+        Label(inter_gap_row, text="Min gap:", width=10, anchor="w").pack(side=LEFT, padx=(6, 2))
+        Entry(inter_gap_row, textvariable=self.interstrand_gap_min_var, width=5).pack(side=LEFT)
+        Label(inter_gap_row, text="Max gap:", width=10, anchor="e").pack(side=LEFT, padx=(6, 2))
+        Entry(inter_gap_row, textvariable=self.interstrand_gap_max_var, width=5).pack(side=LEFT)
 
         self.run_button = Button(scan_section, text="Run Genome Scan", command=self.run_scan, height=2)
         self.run_button.pack(fill=BOTH, pady=(8, 0))
@@ -1498,11 +1779,6 @@ class ScannerGUI:
 
         actions = Frame(right_col)
         actions.pack(fill=BOTH, pady=(10, 0))
-        profile_btn_frame = Frame(actions)
-        profile_btn_frame.pack(fill=X, pady=(10, 0))
-        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("peptide")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
-        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("peptide")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
-
         self.peptide_button = Button(
             actions, text="Run Peptide Coding Search", command=self.run_peptide_search, height=2
         )
@@ -1527,8 +1803,8 @@ class ScannerGUI:
                 "Search for regions that satisfy both nucleotide and peptide search criteria simultaneously. "
                 "The genome is scanned for nucleotide motifs, and the resulting windows are translated into "
                 "amino acids based on the selected reading frames to check for peptide motifs and properties. "
-                "You can define an overall search window (e.g., 5000 nt) and then specify smaller subwindows "
-                "within it for the nucleotide and peptide parts to find motifs that are spaced further apart."
+                "This tab dynamically summarizes the active search parameters from the Nucleotide and Peptide tabs. "
+                "You can define overall search subwindows within the main scan window below."
             ),
             wraplength=800,
             justify=LEFT,
@@ -1542,72 +1818,30 @@ class ScannerGUI:
         paned.add(left_col, weight=1)
         paned.add(right_col, weight=1)
 
-        # Left Column: NT Parameters
-        nt_section = LabelFrame(left_col, text="Nucleotide Search Parameters")
-        nt_section.pack(fill="x", pady=(0, 10), padx=(0, 5), expand=False)
-        
-        nt_help_text = (
-            "IUPAC Nucleotide Codes:\n\n"
-            "A, C, G, T, U: Standard bases\n"
-            "R: A/G (purine), Y: C/T (pyrimidine)\n"
-            "S: G/C (strong), W: A/T (weak)\n"
-            "K: G/T (keto), M: A/C (amino)\n"
-            "B: C/G/T, D: A/G/T, H: A/C/T, V: A/C/G\n"
-            "N: Any base"
-        )
-        self.combined_nt_motif_widget = self._add_multiline_section(nt_section, "NT Motifs (PATTERN:COUNT):", help_text=nt_help_text)
-        self.combined_exclude_nt_widget = self._add_multiline_section(nt_section, "Exclude NT Motifs (PATTERN):")
-        self.combined_base_widget = self._add_multiline_section(nt_section, "Base Constraints (BASE:MIN:MAX):")
-        self.combined_repeat_widget = self._add_multiline_section(nt_section, "Repeat Constraints (BASE:MAX):")
-        self.combined_forward_motif_widget = self._add_multiline_section(nt_section, "Forward-only motifs:")
-        self.combined_reverse_motif_widget = self._add_multiline_section(nt_section, "Reverse-only motifs:")
-        self.combined_self_comp_widget = self._add_multiline_section(nt_section, "Self-Comp Constraints (PATTERN:MODE:LEN:MM[:EXCL]):")
+        # Left Column: NT Parameters Summary
+        nt_section = LabelFrame(left_col, text="Nucleotide Search Parameters Summary")
+        nt_section.pack(fill=BOTH, pady=(0, 10), padx=(0, 5), expand=True)
+        self.combined_nt_summary = scrolledtext.ScrolledText(nt_section, height=18, wrap="word", font=("Segoe UI", 9))
+        self.combined_nt_summary.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        self.combined_nt_summary.configure(state="disabled")
 
-        # Right Column: Peptide Parameters
-        pep_section = LabelFrame(right_col, text="Peptide Search Parameters")
-        pep_section.pack(fill="x", pady=(0, 10), padx=(5, 0), expand=False)
-        
-        pep_help_text = (
-            "IUPAC Amino Acid Codes:\n\n"
-            "Standard: A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y\n"
-            "Ambiguity:\n"
-            "B: D or N (Aspartate or Asparagine)\n"
-            "Z: E or Q (Glutamate or Glutamine)\n"
-            "J: I or L (Isoleucine or Leucine)\n"
-            "X: Any amino acid\n"
-            "*: Stop codon / translation termination"
-        )
-        self.combined_pep_motif_widget = self._add_multiline_section(pep_section, "Peptide Motifs (IUPAC):", help_text=pep_help_text)
-        self.combined_exclude_pep_widget = self._add_multiline_section(pep_section, "Exclude Peptide Motifs:")
-        self.combined_amino_content_widget = self._add_multiline_section(pep_section, "Amino acid content limits:")
-        self.combined_peptide_repeat_widget = self._add_multiline_section(pep_section, "Max repeats (PATTERN:MAX):")
-        
-        frame_section = Frame(pep_section)
-        frame_section.pack(fill=BOTH, pady=5)
-        Label(frame_section, text="Reading Frames:").pack(anchor="w")
-        frame_rows = Frame(frame_section)
-        frame_rows.pack(anchor="w")
-        for idx, frame_id in enumerate(("+0", "+1", "+2", "-0", "-1", "-2")):
-            Checkbutton(
-                frame_rows,
-                text=frame_id,
-                variable=self.combined_frame_vars[frame_id],
-            ).grid(row=idx // 3, column=idx % 3, sticky="w", padx=6, pady=2)
-            
-        pep_misc = Frame(pep_section)
-        pep_misc.pack(fill=X, pady=5)
-        self._add_labeled_entry(pep_misc, "Max Peptide Mismatches:", self.combined_pep_mismatches_var, 12).pack(side=LEFT)
+        # Right Column: Peptide Parameters Summary
+        pep_section = LabelFrame(right_col, text="Peptide Search Parameters Summary")
+        pep_section.pack(fill=BOTH, pady=(0, 10), padx=(5, 0), expand=True)
+        self.combined_pep_summary = scrolledtext.ScrolledText(pep_section, height=18, wrap="word", font=("Segoe UI", 9))
+        self.combined_pep_summary.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        self.combined_pep_summary.configure(state="disabled")
 
         # Bottom section for global inputs
         bottom_frame = Frame(wrapper)
         bottom_frame.pack(fill=X, pady=(10, 0))
-        
-        param_section = LabelFrame(bottom_frame, text="Global Run Parameters")
+
+        param_section = LabelFrame(bottom_frame, text="Global & Combined Run Parameters")
         param_section.pack(fill=BOTH)
-        
+
         row_f = Frame(param_section)
         row_f.pack(fill=X, padx=5, pady=5)
-        
+
         self._add_labeled_entry(row_f, "Window (nt):", self.window_var, 10)
         self._add_labeled_entry(row_f, "Step (nt):", self.step_var, 10)
         self._add_labeled_entry(row_f, "Workers (0=all):", self.workers_var, 10)
@@ -1616,14 +1850,7 @@ class ScannerGUI:
             text="Non-overlapping",
             variable=self.non_overlapping_var,
         ).pack(side=LEFT, padx=10)
-        
-        row_c = Frame(param_section)
-        row_c.pack(fill=X, padx=5, pady=(0, 5))
-        Label(row_c, text="Combined Strand Window (nt):", font=("Segoe UI", 9, "italic")).pack(side=LEFT, padx=(0, 4))
-        self._add_labeled_entry(row_c, "Fwd:", self.combined_comb_fwd_var, 6)
-        self._add_labeled_entry(row_c, "Rev:", self.combined_comb_rev_var, 6)
-        self._add_labeled_entry(row_c, "Overlap:", self.combined_comb_overlap_var, 6)
-        
+
         sub_row = Frame(param_section)
         sub_row.pack(fill=X, padx=5, pady=(0, 5))
         Label(sub_row, text="Subwindow (Length:Offset) - Optional:", font=("Segoe UI", 9, "italic")).pack(side=LEFT, padx=(0, 4))
@@ -1631,11 +1858,6 @@ class ScannerGUI:
         self._add_labeled_entry(sub_row, "NT Off:", self.combined_nt_sub_offset_var, 6)
         self._add_labeled_entry(sub_row, "Pep Len:", self.combined_pep_sub_window_var, 6)
         self._add_labeled_entry(sub_row, "Pep Off:", self.combined_pep_sub_offset_var, 6)
-
-        profile_btn_frame = Frame(param_section)
-        profile_btn_frame.pack(fill=X, padx=5, pady=(5, 0))
-        Button(profile_btn_frame, text="Load Profile", command=lambda: self.load_search_profile("combined")).pack(side=LEFT, expand=True, fill=X, padx=(0, 2))
-        Button(profile_btn_frame, text="Save Profile", command=lambda: self.save_search_profile("combined")).pack(side=RIGHT, expand=True, fill=X, padx=(2, 0))
 
         self.combined_run_button = Button(
             param_section,
@@ -1647,6 +1869,107 @@ class ScannerGUI:
             height=2,
         )
         self.combined_run_button.pack(fill=BOTH, padx=5, pady=10)
+
+    def _update_combined_summary(self) -> None:
+        if getattr(self, "combined_nt_summary", None) is None or getattr(self, "combined_pep_summary", None) is None:
+            return
+
+        # Nucleotide summary
+        nt_lines = []
+        
+        def add_section(title, widget):
+            if widget:
+                text = widget.get("1.0", "end-1c").strip()
+                nt_lines.append(f"{title}:")
+                if text:
+                    for line in text.splitlines():
+                        if line.strip():
+                            nt_lines.append(f"  • {line.strip()}")
+                else:
+                    nt_lines.append("  (None)")
+                nt_lines.append("")
+
+        add_section("Motifs (IUPAC)", getattr(self, "motif_widget", None))
+        add_section("Exclude Motifs", getattr(self, "exclude_motif_widget", None))
+        add_section("Base Content Limits", getattr(self, "base_widget", None))
+        add_section("Max Consecutive Repeats", getattr(self, "repeat_widget", None))
+        add_section("Forward-only Motifs", getattr(self, "forward_motif_widget", None))
+        add_section("Reverse-only Motifs", getattr(self, "reverse_motif_widget", None))
+
+        nt_lines.append("Strands to scan:")
+        nt_lines.append(f"  • Forward (+): {'Yes' if self.forward_strand_var.get() else 'No'}")
+        nt_lines.append(f"  • Reverse (-): {'Yes' if self.reverse_strand_var.get() else 'No'}")
+        if self.combined_strand_var.get():
+            nt_lines.append(f"  • Combined: Yes (Fwd len: {self.combined_forward_var.get()}, Rev len: {self.combined_reverse_var.get()}, Overlap: {self.combined_overlap_var.get()})")
+        else:
+            nt_lines.append("  • Combined: No")
+        nt_lines.append("")
+
+        nt_lines.append("Hits Analyses Constraints:")
+        if self.require_palindrome_var.get():
+            nt_lines.append(f"  • Palindrome/Hairpin: Yes (Min: {self.palindrome_min_len_var.get()}, Max: {self.palindrome_max_len_var.get() or 'None'})")
+        else:
+            nt_lines.append("  • Palindrome/Hairpin: No")
+
+        if self.require_intrastrand_var.get():
+            nt_lines.append(
+                f"  • Intrastrand (Inverted Repeat): Yes (Min: {self.intrastrand_min_len_var.get() or '6'}, "
+                f"Max: {self.intrastrand_max_len_var.get() or 'None'}, Mismatches: {self.intrastrand_mismatches_var.get() or '0'}, "
+                f"Gap: {self.intrastrand_gap_min_var.get() or '0'} to {self.intrastrand_gap_max_var.get() or 'None'})"
+            )
+        else:
+            nt_lines.append("  • Intrastrand (Inverted Repeat): No")
+
+        if self.require_interstrand_var.get():
+            nt_lines.append(
+                f"  • Interstrand (Direct Repeat): Yes (Min: {self.interstrand_min_len_var.get() or '6'}, "
+                f"Max: {self.interstrand_max_len_var.get() or 'None'}, Mismatches: {self.interstrand_mismatches_var.get() or '0'}, "
+                f"Gap: {self.interstrand_gap_min_var.get() or '0'} to {self.interstrand_gap_max_var.get() or 'None'})"
+            )
+        else:
+            nt_lines.append("  • Interstrand (Direct Repeat): No")
+
+        # Update NT summary widget
+        self.combined_nt_summary.configure(state="normal")
+        self.combined_nt_summary.delete("1.0", "end")
+        self.combined_nt_summary.insert("1.0", "\n".join(nt_lines))
+        self.combined_nt_summary.configure(state="disabled")
+
+        # Peptide summary
+        pep_lines = []
+        
+        def add_pep_section(title, widget):
+            if widget:
+                text = widget.get("1.0", "end-1c").strip()
+                pep_lines.append(f"{title}:")
+                if text:
+                    for line in text.splitlines():
+                        if line.strip():
+                            pep_lines.append(f"  • {line.strip()}")
+                else:
+                    pep_lines.append("  (None)")
+                pep_lines.append("")
+
+        add_pep_section("Peptide Motifs", getattr(self, "peptide_motif_widget", None))
+        add_pep_section("Exclude Peptide Motifs", getattr(self, "peptide_exclude_widget", None))
+        add_pep_section("Amino Acid Content Limits", getattr(self, "amino_content_widget", None))
+        add_pep_section("Max Repeats", getattr(self, "peptide_repeat_widget", None))
+
+        active_frames = [f for f, v in self.peptide_frame_vars.items() if v.get()]
+        pep_lines.append("Reading Frames:")
+        if active_frames:
+            pep_lines.append(f"  • {', '.join(active_frames)}")
+        else:
+            pep_lines.append("  • (None selected!)")
+        pep_lines.append("")
+
+        pep_lines.append(f"Max Peptide Mismatches: {self.peptide_max_mismatches_var.get() or '0'}")
+
+        # Update Peptide summary widget
+        self.combined_pep_summary.configure(state="normal")
+        self.combined_pep_summary.delete("1.0", "end")
+        self.combined_pep_summary.insert("1.0", "\n".join(pep_lines))
+        self.combined_pep_summary.configure(state="disabled")
 
     def _build_triplex_tab(self, parent: Frame, heading: str, accent_color: str) -> None:
         wrapper = Frame(parent)
@@ -1948,6 +2271,26 @@ class ScannerGUI:
 
         options = LabelFrame(right_col, text="Display Options")
         options.pack(fill=BOTH, pady=(0, 10))
+
+        layout_row = Frame(options)
+        layout_row.pack(fill=X, pady=(0, 6))
+        Label(layout_row, text="Layout:").pack(side=LEFT)
+        ttk.Combobox(
+            layout_row, textvariable=self.vector_orientation_var, state="readonly",
+            values=("horizontal", "vertical"), width=11,
+        ).pack(side=LEFT, padx=(4, 12))
+        Label(layout_row, text="Assembly:").pack(side=LEFT)
+        ttk.Combobox(
+            layout_row, textvariable=self.vector_assembly_var, state="readonly",
+            values=("auto", "grch38", "t2t"), width=8,
+        ).pack(side=LEFT, padx=(4, 0))
+        Label(
+            options,
+            text="Horizontal draws human-chromosome ideograms (centromeres, true lengths); "
+                 "vertical is the legacy bar layout.",
+            wraplength=320, justify=LEFT, fg="#555555",
+        ).pack(anchor="w", pady=(0, 6))
+
         label_box = LabelFrame(options, text="Chromosome labels")
         label_box.pack(fill=BOTH, pady=(0, 6))
         Radiobutton(
@@ -2122,8 +2465,47 @@ class ScannerGUI:
             Label(wrapper, text="Analysis scripts (nt_sequence_G4_TD_analysis.py) not found. Tools tab disabled.", fg="red").pack(pady=20)
             return
 
-        # 1. G4Hunter Scorer
-        g4_frame, g4_content = self._make_collapsible_tool(wrapper, "G4Hunter Scorer")
+        cols_frame = Frame(wrapper)
+        cols_frame.pack(fill=BOTH, expand=True, pady=10)
+        
+        left_col = Frame(cols_frame)
+        left_col.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
+        
+        right_col = Frame(cols_frame)
+        right_col.pack(side=RIGHT, fill=BOTH, expand=True, padx=(10, 0))
+
+        # Translation & Codon Optimization Group
+        trans_group = LabelFrame(left_col, text="Translation & Codon Optimization", font=("Segoe UI", 11, "bold"), fg="#059669")
+        trans_group.pack(fill=BOTH, expand=True, pady=(0, 10))
+
+        # Structure & Thermodynamics Analysis Group
+        analysis_group = LabelFrame(right_col, text="Structure & Thermodynamics Analysis", font=("Segoe UI", 11, "bold"), fg="#059669")
+        analysis_group.pack(fill=BOTH, expand=True, pady=(0, 10))
+
+        # 1. 6-Frame Translator
+        trans_frame, trans_content = self._make_collapsible_tool(trans_group, "6-Frame Translator")
+        Label(trans_content, text="NT Sequence:").pack(anchor="w")
+        trans_text = scrolledtext.ScrolledText(trans_content, height=4, width=60)
+        trans_text.pack(fill=X, pady=(0, 6))
+        Button(trans_content, text="Translate All Frames", command=lambda: self._run_translator_tool(trans_text, trans_results)).pack(anchor="w")
+        trans_results = scrolledtext.ScrolledText(trans_content, height=12, width=60, state="disabled", bg="#f8f9fa")
+        trans_results.pack(fill=X, pady=6)
+        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(side=RIGHT, padx=2)
+        Button(trans_content, text="Copy Results", command=lambda: self._copy_tool_results(trans_results)).pack(side=RIGHT, padx=2)
+
+        # 2. Codon Optimizer
+        codon_frame, codon_content = self._make_collapsible_tool(trans_group, "Codon Optimizer")
+        Label(codon_content, text="Input NT or Peptide Sequence:").pack(anchor="w")
+        codon_text = scrolledtext.ScrolledText(codon_content, height=4, width=60)
+        codon_text.pack(fill=X, pady=(0, 6))
+        Button(codon_content, text="Optimize Sequence", command=lambda: self._run_codon_optimizer_tool(codon_text, codon_results)).pack(anchor="w")
+        codon_results = scrolledtext.ScrolledText(codon_content, height=8, width=60, state="disabled", bg="#f8f9fa")
+        codon_results.pack(fill=X, pady=6)
+        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(side=RIGHT, padx=2)
+        Button(codon_content, text="Copy Results", command=lambda: self._copy_tool_results(codon_results)).pack(side=RIGHT, padx=2)
+
+        # 3. G4Hunter Scorer
+        g4_frame, g4_content = self._make_collapsible_tool(analysis_group, "G4Hunter Scorer")
         Label(g4_content, text="NT Sequence:").pack(anchor="w")
         g4_text = scrolledtext.ScrolledText(g4_content, height=4, width=60)
         g4_text.pack(fill=X, pady=(0, 6))
@@ -2136,30 +2518,8 @@ class ScannerGUI:
         Button(g4_content, text="Save Results", command=lambda: self._save_tool_results(g4_results)).pack(side=RIGHT, padx=2)
         Button(g4_content, text="Copy Results", command=lambda: self._copy_tool_results(g4_results)).pack(side=RIGHT, padx=2)
 
-        # 2. Codon Optimizer
-        codon_frame, codon_content = self._make_collapsible_tool(wrapper, "Codon Optimizer")
-        Label(codon_content, text="Input NT or Peptide Sequence:").pack(anchor="w")
-        codon_text = scrolledtext.ScrolledText(codon_content, height=4, width=60)
-        codon_text.pack(fill=X, pady=(0, 6))
-        Button(codon_content, text="Optimize Sequence", command=lambda: self._run_codon_optimizer_tool(codon_text, codon_results)).pack(anchor="w")
-        codon_results = scrolledtext.ScrolledText(codon_content, height=8, width=60, state="disabled", bg="#f8f9fa")
-        codon_results.pack(fill=X, pady=6)
-        Button(codon_content, text="Save Results", command=lambda: self._save_tool_results(codon_results)).pack(side=RIGHT, padx=2)
-        Button(codon_content, text="Copy Results", command=lambda: self._copy_tool_results(codon_results)).pack(side=RIGHT, padx=2)
-
-        # 3. 6-Frame Translator
-        trans_frame, trans_content = self._make_collapsible_tool(wrapper, "6-Frame Translator")
-        Label(trans_content, text="NT Sequence:").pack(anchor="w")
-        trans_text = scrolledtext.ScrolledText(trans_content, height=4, width=60)
-        trans_text.pack(fill=X, pady=(0, 6))
-        Button(trans_content, text="Translate All Frames", command=lambda: self._run_translator_tool(trans_text, trans_results)).pack(anchor="w")
-        trans_results = scrolledtext.ScrolledText(trans_content, height=12, width=60, state="disabled", bg="#f8f9fa")
-        trans_results.pack(fill=X, pady=6)
-        Button(trans_content, text="Save Results", command=lambda: self._save_tool_results(trans_results)).pack(side=RIGHT, padx=2)
-        Button(trans_content, text="Copy Results", command=lambda: self._copy_tool_results(trans_results)).pack(side=RIGHT, padx=2)
-
         # 4. Thermodynamic Analyzer
-        thermo_frame, thermo_content = self._make_collapsible_tool(wrapper, "Thermodynamic Analyzer")
+        thermo_frame, thermo_content = self._make_collapsible_tool(analysis_group, "Thermodynamic Analyzer")
         Label(thermo_content, text="NT Sequence:").pack(anchor="w")
         thermo_text = scrolledtext.ScrolledText(thermo_content, height=4, width=60)
         thermo_text.pack(fill=X, pady=(0, 6))
@@ -2174,7 +2534,7 @@ class ScannerGUI:
         Button(thermo_content, text="Copy Results", command=lambda: self._copy_tool_results(thermo_results)).pack(side=RIGHT, padx=2)
 
         # 5. G4 Mutation Optimizer
-        mut_frame, mut_content = self._make_collapsible_tool(wrapper, "G4 Mutation Optimizer")
+        mut_frame, mut_content = self._make_collapsible_tool(analysis_group, "G4 Mutation Optimizer")
         Label(mut_content, text="NT Sequence:").pack(anchor="w")
         mut_text = scrolledtext.ScrolledText(mut_content, height=4, width=60)
         mut_text.pack(fill=X, pady=(0, 6))
@@ -2706,7 +3066,8 @@ class ScannerGUI:
         data_rows = rows[1:]
         top = Toplevel(self.root)
         top.title(f"{title} - {file_path.name}")
-        top.geometry("1100x700")
+        top.minsize(640, 400)
+        self._center_toplevel(top, 1100, 700)
 
         # Top control frame
         top_controls = Frame(top)
@@ -2981,53 +3342,6 @@ class ScannerGUI:
                 if "," in line:
                     return ","
         return "\t"
-
-    def _update_reactive_oligo(self, _event=None) -> None:
-        if not self.motif_widget:
-            return
-        text = self.motif_widget.get("1.0", END).strip()
-        if not text:
-            self.oligonucleotide_demo_var.set("[No Motif Entered]")
-            return
-        
-        first_line = text.split("\n")[0].split(":")[0].strip()
-        if not first_line:
-            self.oligonucleotide_demo_var.set("[No Motif Entered]")
-            return
-            
-        iupac_map = {
-            "G": "G", "A": "A", "T": "T", "C": "C",
-            "R": "A", "Y": "C", "M": "A", "K": "G",
-            "S": "G", "W": "A", "H": "A", "B": "C",
-            "V": "G", "D": "G", "N": "A"
-        }
-        
-        result = ""
-        i = 0
-        while i < len(first_line):
-            c = first_line[i].upper()
-            if c in iupac_map:
-                base = iupac_map[c]
-                i += 1
-                if i < len(first_line) and first_line[i] == "{":
-                    end = first_line.find("}", i)
-                    if end != -1:
-                        range_str = first_line[i+1:end]
-                        parts = range_str.split(",")
-                        count = int(parts[0]) if parts[0].isdigit() else 1
-                        result += base * count
-                        i = end + 1
-                    else:
-                        result += base
-                else:
-                    result += base
-            else:
-                i += 1
-        
-        if result:
-            self.oligonucleotide_demo_var.set(result)
-        else:
-            self.oligonucleotide_demo_var.set("[Invalid Motif]")
 
     # ── Self-complementarity constraint panel helpers ──────────────────────
 
@@ -3352,9 +3666,14 @@ class ScannerGUI:
                 window = int(self.window_var.get())
                 step = int(self.step_var.get())
                 workers = int(self.workers_var.get())
-                comb_fwd = int(self.combined_comb_fwd_var.get().strip() or "0")
-                comb_rev = int(self.combined_comb_rev_var.get().strip() or "0")
-                comb_overlap = int(self.combined_comb_overlap_var.get().strip() or "0")
+                if self.combined_strand_var.get():
+                    comb_fwd = int(self.combined_forward_var.get().strip() or "0")
+                    comb_rev = int(self.combined_reverse_var.get().strip() or "0")
+                    comb_overlap = int(self.combined_overlap_var.get().strip() or "0")
+                else:
+                    comb_fwd = 0
+                    comb_rev = 0
+                    comb_overlap = 0
             except ValueError as exc:
                 messagebox.showerror("Invalid numeric value", str(exc))
                 return
@@ -3362,23 +3681,23 @@ class ScannerGUI:
             output_prefix = "combined_search_hits"
             output_name = self.output_name_var.get().strip() or "default"
             
-            # Get NT params
-            nt_motifs = self._get_advanced_lines(self.combined_nt_motif_widget, "_saved_comb_nt_motif") if self.combined_nt_motif_widget else []
-            exclude_nt_motifs = self._get_advanced_lines(self.combined_exclude_nt_widget, "_saved_comb_excl_nt") if self.combined_exclude_nt_widget else []
-            base_limits = self._get_advanced_lines(self.combined_base_widget, "_saved_comb_base") if self.combined_base_widget else []
-            repeat_limits = self._get_advanced_lines(self.combined_repeat_widget, "_saved_comb_rep") if self.combined_repeat_widget else []
-            self_comp_motifs = self._get_advanced_lines(self.combined_self_comp_widget, "_saved_comb_sc") if self.combined_self_comp_widget else []
-            fwd_nt_motifs = self._get_advanced_lines(self.combined_forward_motif_widget, "_saved_comb_fwd") if self.combined_forward_motif_widget else []
-            rev_nt_motifs = self._get_advanced_lines(self.combined_reverse_motif_widget, "_saved_comb_rev") if self.combined_reverse_motif_widget else []
+            # Get NT params from Nucleotide search tab
+            nt_motifs = self._get_advanced_lines(self.motif_widget, "_saved_motif_text") if self.motif_widget else []
+            exclude_nt_motifs = self._get_advanced_lines(self.exclude_motif_widget, "_saved_exclude_text") if self.exclude_motif_widget else []
+            base_limits = self._get_advanced_lines(self.base_widget, "_saved_base_text") if self.base_widget else []
+            repeat_limits = self._get_advanced_lines(self.repeat_widget, "_saved_repeat_text") if self.repeat_widget else []
+            self_comp_motifs = self._sc_rules_to_cli_args()
+            fwd_nt_motifs = self._get_advanced_lines(self.forward_motif_widget, "_saved_forward_motif_text") if self.forward_motif_widget else []
+            rev_nt_motifs = self._get_advanced_lines(self.reverse_motif_widget, "_saved_reverse_motif_text") if self.reverse_motif_widget else []
             
-            # Get Peptide params
-            pep_motifs = self._get_advanced_lines(self.combined_pep_motif_widget, "_saved_comb_pep_motif") if self.combined_pep_motif_widget else []
-            exclude_pep_motifs = self._get_advanced_lines(self.combined_exclude_pep_widget, "_saved_comb_excl_pep") if self.combined_exclude_pep_widget else []
-            pep_amino_content = self._get_advanced_lines(self.combined_amino_content_widget, "_saved_comb_amino") if self.combined_amino_content_widget else []
-            pep_repeats = self._get_advanced_lines(self.combined_peptide_repeat_widget, "_saved_comb_pep_rep") if self.combined_peptide_repeat_widget else []
-            pep_mismatches = self.combined_pep_mismatches_var.get().strip() or "0"
+            # Get Peptide params from Peptide search tab
+            pep_motifs = self._get_advanced_lines(self.peptide_motif_widget, "_saved_pep_motif") if self.peptide_motif_widget else []
+            exclude_pep_motifs = self._get_advanced_lines(self.peptide_exclude_widget, "_saved_pep_exclude") if self.peptide_exclude_widget else []
+            pep_amino_content = self._get_advanced_lines(self.amino_content_widget, "_saved_pep_amino") if self.amino_content_widget else []
+            pep_repeats = self._get_advanced_lines(self.peptide_repeat_widget, "_saved_pep_repeat") if self.peptide_repeat_widget else []
+            pep_mismatches = self.peptide_max_mismatches_var.get().strip() or "0"
             
-            frames = [frame for frame, var in self.combined_frame_vars.items() if var.get()]
+            frames = [frame for frame, var in self.peptide_frame_vars.items() if var.get()]
             if not frames:
                 messagebox.showerror("Invalid input", "Please select at least one reading frame.")
                 return
@@ -3440,6 +3759,42 @@ class ScannerGUI:
                 if pal_min:
                     cmd.extend(["--palindrome-min-len", pal_min])
                     
+            if self.require_intrastrand_var.get():
+                cmd.append("--require-intrastrand")
+                intrastrand_min = self.intrastrand_min_len_var.get().strip()
+                if intrastrand_min:
+                    cmd.extend(["--intrastrand-min-len", intrastrand_min])
+                intrastrand_max = self.intrastrand_max_len_var.get().strip()
+                if intrastrand_max:
+                    cmd.extend(["--intrastrand-max-len", intrastrand_max])
+                intrastrand_mismatches = self.intrastrand_mismatches_var.get().strip()
+                if intrastrand_mismatches:
+                    cmd.extend(["--intrastrand-mismatches", intrastrand_mismatches])
+                intrastrand_gap_min = self.intrastrand_gap_min_var.get().strip()
+                if intrastrand_gap_min:
+                    cmd.extend(["--intrastrand-gap-min", intrastrand_gap_min])
+                intrastrand_gap_max = self.intrastrand_gap_max_var.get().strip()
+                if intrastrand_gap_max:
+                    cmd.extend(["--intrastrand-gap-max", intrastrand_gap_max])
+                    
+            if self.require_interstrand_var.get():
+                cmd.append("--require-interstrand")
+                interstrand_min = self.interstrand_min_len_var.get().strip()
+                if interstrand_min:
+                    cmd.extend(["--interstrand-min-len", interstrand_min])
+                interstrand_max = self.interstrand_max_len_var.get().strip()
+                if interstrand_max:
+                    cmd.extend(["--interstrand-max-len", interstrand_max])
+                interstrand_mismatches = self.interstrand_mismatches_var.get().strip()
+                if interstrand_mismatches:
+                    cmd.extend(["--interstrand-mismatches", interstrand_mismatches])
+                interstrand_gap_min = self.interstrand_gap_min_var.get().strip()
+                if interstrand_gap_min:
+                    cmd.extend(["--interstrand-gap-min", interstrand_gap_min])
+                interstrand_gap_max = self.interstrand_gap_max_var.get().strip()
+                if interstrand_gap_max:
+                    cmd.extend(["--interstrand-gap-max", interstrand_gap_max])
+                    
             if self.non_overlapping_var.get():
                 cmd.append("--non-overlapping")
 
@@ -3491,18 +3846,25 @@ class ScannerGUI:
             }
 
             if mode in ("nucleotide", "combined"):
-                if mode == "nucleotide":
-                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
-                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
-                    sc_rules = self._sc_rules_to_cli_args()
-                else:
-                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.combined_nt_motif_widget, self.combined_exclude_nt_widget, self.combined_base_widget, self.combined_repeat_widget, self.combined_forward_motif_widget, self.combined_reverse_motif_widget)
-                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_comb_nt_motif", "_saved_comb_excl_nt", "_saved_comb_base", "_saved_comb_rep", "_saved_comb_fwd", "_saved_comb_rev")
-                    sc_rules = self._get_advanced_lines(self.combined_self_comp_widget, "_saved_comb_sc")
+                m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
+                m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
+                sc_rules = self._sc_rules_to_cli_args()
                 
                 data.update({
                     "require_palindrome": self.require_palindrome_var.get(),
                     "palindrome_min_len": self.palindrome_min_len_var.get(),
+                    "require_intrastrand": self.require_intrastrand_var.get(),
+                    "intrastrand_min_len": self.intrastrand_min_len_var.get(),
+                    "intrastrand_max_len": self.intrastrand_max_len_var.get(),
+                    "intrastrand_mismatches": self.intrastrand_mismatches_var.get(),
+                    "intrastrand_gap_min": self.intrastrand_gap_min_var.get(),
+                    "intrastrand_gap_max": self.intrastrand_gap_max_var.get(),
+                    "require_interstrand": self.require_interstrand_var.get(),
+                    "interstrand_min_len": self.interstrand_min_len_var.get(),
+                    "interstrand_max_len": self.interstrand_max_len_var.get(),
+                    "interstrand_mismatches": self.interstrand_mismatches_var.get(),
+                    "interstrand_gap_min": self.interstrand_gap_min_var.get(),
+                    "interstrand_gap_max": self.interstrand_gap_max_var.get(),
                     "non_overlapping": self.non_overlapping_var.get(),
                     "nt_motifs": self._get_advanced_lines(m_w, m_key),
                     "exclude_nt_motifs": self._get_advanced_lines(ex_w, ex_key),
@@ -3514,12 +3876,8 @@ class ScannerGUI:
                 })
 
             if mode in ("peptide", "combined"):
-                if mode == "peptide":
-                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
-                    pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
-                else:
-                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.combined_pep_motif_widget, self.combined_exclude_pep_widget, self.combined_amino_content_widget, self.combined_peptide_repeat_widget, self.combined_pep_mismatches_var, self.combined_frame_vars)
-                    pm_key, px_key, pa_key, pr_key = ("_saved_comb_pep_motif", "_saved_comb_excl_pep", "_saved_comb_amino", "_saved_comb_pep_rep")
+                pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
+                pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
 
                 data.update({
                     "pep_motifs": self._get_advanced_lines(pm_w, pm_key),
@@ -3585,16 +3943,24 @@ class ScannerGUI:
             if "region_filter" in data: self._set_multiline_widget(self.region_filter_widget, "_saved_reg_filter", data["region_filter"])
     
             if mode in ("nucleotide", "combined"):
-                if mode == "nucleotide":
-                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
-                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
-                else:
-                    m_w, ex_w, b_w, r_w, f_w, rv_w = (self.combined_nt_motif_widget, self.combined_exclude_nt_widget, self.combined_base_widget, self.combined_repeat_widget, self.combined_forward_motif_widget, self.combined_reverse_motif_widget)
-                    m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_comb_nt_motif", "_saved_comb_excl_nt", "_saved_comb_base", "_saved_comb_rep", "_saved_comb_fwd", "_saved_comb_rev")
+                m_w, ex_w, b_w, r_w, f_w, rv_w = (self.motif_widget, self.exclude_motif_widget, self.base_widget, self.repeat_widget, self.forward_motif_widget, self.reverse_motif_widget)
+                m_key, ex_key, b_key, r_key, f_key, rv_key = ("_saved_motif_text", "_saved_exclude_text", "_saved_base_text", "_saved_repeat_text", "_saved_forward_motif_text", "_saved_reverse_motif_text")
     
                 if "require_palindrome" in data: self.require_palindrome_var.set(bool(data["require_palindrome"]))
                 if "non_overlapping" in data: self.non_overlapping_var.set(bool(data["non_overlapping"]))
                 set_var(self.palindrome_min_len_var, "palindrome_min_len")
+                if "require_intrastrand" in data: self.require_intrastrand_var.set(bool(data["require_intrastrand"]))
+                set_var(self.intrastrand_min_len_var, "intrastrand_min_len")
+                set_var(self.intrastrand_max_len_var, "intrastrand_max_len")
+                set_var(self.intrastrand_mismatches_var, "intrastrand_mismatches")
+                set_var(self.intrastrand_gap_min_var, "intrastrand_gap_min")
+                set_var(self.intrastrand_gap_max_var, "intrastrand_gap_max")
+                if "require_interstrand" in data: self.require_interstrand_var.set(bool(data["require_interstrand"]))
+                set_var(self.interstrand_min_len_var, "interstrand_min_len")
+                set_var(self.interstrand_max_len_var, "interstrand_max_len")
+                set_var(self.interstrand_mismatches_var, "interstrand_mismatches")
+                set_var(self.interstrand_gap_min_var, "interstrand_gap_min")
+                set_var(self.interstrand_gap_max_var, "interstrand_gap_max")
                 
                 if "nt_motifs" in data: self._set_multiline_widget(m_w, m_key, data["nt_motifs"])
                 if "exclude_nt_motifs" in data: self._set_multiline_widget(ex_w, ex_key, data["exclude_nt_motifs"])
@@ -3604,25 +3970,18 @@ class ScannerGUI:
                 if "reverse_only_motifs" in data: self._set_multiline_widget(rv_w, rv_key, data["reverse_only_motifs"])
                 
                 if "self_comp" in data:
-                    if mode == "nucleotide":
-                        self._self_comp_rules = []
-                        for spec in data["self_comp"]:
-                            rule = self._sc_cli_spec_to_rule(spec)
-                            if rule: self._self_comp_rules.append(rule)
-                        if self._sc_rules_listbox:
-                            self._sc_rules_listbox.delete(0, END)
-                            for r in self._self_comp_rules:
-                                self._sc_rules_listbox.insert(END, self._sc_rule_label(r))
-                    else:
-                        self._set_multiline_widget(self.combined_self_comp_widget, "_saved_comb_sc", data["self_comp"])
+                    self._self_comp_rules = []
+                    for spec in data["self_comp"]:
+                        rule = self._sc_cli_spec_to_rule(spec)
+                        if rule: self._self_comp_rules.append(rule)
+                    if self._sc_rules_listbox:
+                        self._sc_rules_listbox.delete(0, END)
+                        for r in self._self_comp_rules:
+                            self._sc_rules_listbox.insert(END, self._sc_rule_label(r))
     
             if mode in ("peptide", "combined"):
-                if mode == "peptide":
-                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
-                    pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
-                else:
-                    pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.combined_pep_motif_widget, self.combined_exclude_pep_widget, self.combined_amino_content_widget, self.combined_peptide_repeat_widget, self.combined_pep_mismatches_var, self.combined_frame_vars)
-                    pm_key, px_key, pa_key, pr_key = ("_saved_comb_pep_motif", "_saved_comb_excl_pep", "_saved_comb_amino", "_saved_comb_pep_rep")
+                pm_w, px_w, pa_w, pr_w, pmm_v, pf_vars = (self.peptide_motif_widget, self.peptide_exclude_widget, self.amino_content_widget, self.peptide_repeat_widget, self.peptide_max_mismatches_var, self.peptide_frame_vars)
+                pm_key, px_key, pa_key, pr_key = ("_saved_pep_motif", "_saved_pep_exclude", "_saved_pep_amino", "_saved_pep_repeat")
     
                 set_var(pmm_v, "pep_mismatches")
                 if "pep_motifs" in data: self._set_multiline_widget(pm_w, pm_key, data["pep_motifs"])
@@ -3637,13 +3996,14 @@ class ScannerGUI:
     
             if mode == "combined":
                 if "combined_strand" in data: self.combined_strand_var.set(bool(data["combined_strand"]))
-                set_var(self.combined_comb_fwd_var, "combined_forward_len")
-                set_var(self.combined_comb_rev_var, "combined_reverse_len")
-                set_var(self.combined_comb_overlap_var, "combined_overlap")
+                set_var(self.combined_forward_var, "combined_forward_len")
+                set_var(self.combined_reverse_var, "combined_reverse_len")
+                set_var(self.combined_overlap_var, "combined_overlap")
                 set_var(self.combined_nt_sub_window_var, "nt_sub_window")
                 set_var(self.combined_nt_sub_offset_var, "nt_sub_offset")
                 set_var(self.combined_pep_sub_window_var, "pep_sub_window")
                 set_var(self.combined_pep_sub_offset_var, "pep_sub_offset")
+                self._update_combined_summary()
             
             self.append_log(f"Loaded {mode} search profile from {Path(file_path).name}")
         except Exception as e:
@@ -3735,6 +4095,40 @@ class ScannerGUI:
             cmd.append("--require-palindrome")
         if pal_min_value is not None:
             cmd.extend(["--palindrome-min-len", str(pal_min_value)])
+        if self.require_intrastrand_var.get():
+            cmd.append("--require-intrastrand")
+            intrastrand_min = self.intrastrand_min_len_var.get().strip()
+            if intrastrand_min:
+                cmd.extend(["--intrastrand-min-len", intrastrand_min])
+            intrastrand_max = self.intrastrand_max_len_var.get().strip()
+            if intrastrand_max:
+                cmd.extend(["--intrastrand-max-len", intrastrand_max])
+            intrastrand_mismatches = self.intrastrand_mismatches_var.get().strip()
+            if intrastrand_mismatches:
+                cmd.extend(["--intrastrand-mismatches", intrastrand_mismatches])
+            intrastrand_gap_min = self.intrastrand_gap_min_var.get().strip()
+            if intrastrand_gap_min:
+                cmd.extend(["--intrastrand-gap-min", intrastrand_gap_min])
+            intrastrand_gap_max = self.intrastrand_gap_max_var.get().strip()
+            if intrastrand_gap_max:
+                cmd.extend(["--intrastrand-gap-max", intrastrand_gap_max])
+        if self.require_interstrand_var.get():
+            cmd.append("--require-interstrand")
+            interstrand_min = self.interstrand_min_len_var.get().strip()
+            if interstrand_min:
+                cmd.extend(["--interstrand-min-len", interstrand_min])
+            interstrand_max = self.interstrand_max_len_var.get().strip()
+            if interstrand_max:
+                cmd.extend(["--interstrand-max-len", interstrand_max])
+            interstrand_mismatches = self.interstrand_mismatches_var.get().strip()
+            if interstrand_mismatches:
+                cmd.extend(["--interstrand-mismatches", interstrand_mismatches])
+            interstrand_gap_min = self.interstrand_gap_min_var.get().strip()
+            if interstrand_gap_min:
+                cmd.extend(["--interstrand-gap-min", interstrand_gap_min])
+            interstrand_gap_max = self.interstrand_gap_max_var.get().strip()
+            if interstrand_gap_max:
+                cmd.extend(["--interstrand-gap-max", interstrand_gap_max])
         strands = self._selected_strands()
         if not strands:
             messagebox.showerror(
@@ -3775,6 +4169,26 @@ class ScannerGUI:
                     str(combined_overlap),
                 ]
             )
+
+        engine_choice = (self.scan_engine_var.get() or "auto").strip()
+        if engine_choice in ("cpu", "gpu"):
+            cmd.extend(["--engine", engine_choice])
+        if self.scan_gpu_kernels_var.get():
+            cmd.append("--gpu-kernels")
+        seq_type = (self.scan_sequence_type_var.get() or "auto").strip()
+        if seq_type and seq_type != "auto":
+            cmd.extend(["--sequence-type", seq_type])
+        scan_g4_min = self.scan_min_g4hunter_var.get().strip()
+        if scan_g4_min:
+            try:
+                float(scan_g4_min)
+            except ValueError:
+                messagebox.showerror(
+                    "Invalid G4Hunter threshold",
+                    "Min G4Hunter must be a number (e.g. 1.0). Leave blank to disable.",
+                )
+                return
+            cmd.extend(["--min-g4hunter", scan_g4_min])
 
         output_dir = self._get_output_dir()
         hits_tsv = output_dir / f"{output_prefix}.tsv"
@@ -4606,6 +5020,8 @@ class ScannerGUI:
         cmd.extend(["--font-size", self.vector_font_size_var.get().strip() or "12"])
         cmd.extend(["--palette", self.vector_palette_var.get().strip() or "default"])
         cmd.extend(["--scale-mode", self.vector_scale_mode_var.get().strip() or "absolute"])
+        cmd.extend(["--orientation", self.vector_orientation_var.get().strip() or "horizontal"])
+        cmd.extend(["--assembly", self.vector_assembly_var.get().strip() or "auto"])
         cmd.extend(["--bg-color", self.vector_bg_color_var.get().strip() or "#f8f8f8"])
         cmd.extend(["--bg-alpha", self.vector_bg_alpha_var.get().strip() or "1.0"])
         cmd.extend(["--legend-pos", self.vector_legend_pos_var.get().strip() or "right"])
@@ -4636,67 +5052,6 @@ class ScannerGUI:
             daemon=True,
         )
         thread.start()
-
-    def run_visualization(self) -> None:
-        hits_path = (
-            self.viz_hits_var.get().strip()
-            or self.processed_hits_var.get().strip()
-            or self.process_hits_var.get().strip()
-        )
-        if not hits_path:
-            messagebox.showerror("Missing input", "Select a processed TSV (or CSV) file to visualize.")
-            return
-        input_file = Path(hits_path)
-        if not input_file.is_file():
-            messagebox.showerror("Invalid file", f"No file found at '{hits_path}'.")
-            return
-        if not VISUALIZER_SCRIPT.is_file():
-            messagebox.showerror(
-                "Missing script", f"Could not find {VISUALIZER_SCRIPT.name} next to this GUI."
-            )
-            return
-        scope = self.viz_scope_var.get()
-        if scope == "genes":
-            gene_list = self.gene_list_var.get().strip()
-            if not gene_list:
-                messagebox.showerror("Missing gene list", "Run the gene extraction step first.")
-                return
-            gene_path = Path(gene_list)
-            if not gene_path.is_file():
-                messagebox.showerror("Invalid gene list", f"No file found at '{gene_path}'.")
-                return
-            input_file = gene_path
-        output_path = self._resolve_viz_output_path(self.viz_output_var.get())
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        self._set_viz_output_var(output_path)
-        viz_mode = self.viz_format_var.get()
-        cli_viz_mode = "csv" if viz_mode == "custom" else viz_mode
-        cmd = [
-            "cmd",
-            "/c",
-            "start",
-            "",
-            sys.executable,
-            "chromosome_visualizer.py",
-            str(input_file),
-            "--input-format",
-            cli_viz_mode,
-            "--mode",
-            scope,
-            "--output",
-            str(output_path),
-            "--label-mode",
-            self.viz_label_mode_var.get(),
-        ]
-        self.append_log(
-            "Launching visualization command in new terminal: "
-            + " ".join(cmd[4:])
-        )
-        try:
-            subprocess.Popen(cmd, cwd=str(Path(__file__).parent))
-        except Exception as exc:
-            messagebox.showerror("Visualization error", str(exc))
-            return
 
     def run_gene_extract(self) -> None:
         hits_path = (
@@ -4755,21 +5110,43 @@ class ScannerGUI:
         success = False
         t_start = time.time()
         try:
-            completed = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT_DIR))
-            stdout = completed.stdout.strip()
-            stderr = completed.stderr.strip()
-            if stdout:
-                self.root.after(0, self.append_log, stdout)
-            if stderr:
-                self.root.after(0, self.append_log, f"[stderr] {stderr}")
-            success = completed.returncode == 0
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(ROOT_DIR)
+            )
+            
+            # Read real-time output
+            import re
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                line_str = line.rstrip("\r\n")
+                self.root.after(0, self.append_log, line_str)
+                
+                # Check for progress info in output
+                if "[scanner] Progress:" in line_str:
+                    match = re.search(r"(\d+(?:\.\d+)?)\s*%", line_str)
+                    if match:
+                        try:
+                            percent = float(match.group(1))
+                            self.root.after(0, self._update_progress_bar, percent)
+                        except Exception:
+                            pass
+                            
+            process.wait()
+            success = process.returncode == 0
             elapsed = time.time() - t_start
             elapsed_str = self._format_elapsed(elapsed)
             if success:
                 self.root.after(0, self.append_log, f"Command completed successfully in {elapsed_str}.")
             else:
                 self.root.after(
-                    0, self.append_log, f"Command failed with exit code {completed.returncode} after {elapsed_str}."
+                    0, self.append_log, f"Command failed with exit code {process.returncode} after {elapsed_str}."
                 )
         except Exception as exc:
             elapsed = time.time() - t_start
@@ -4798,6 +5175,8 @@ class ScannerGUI:
     def _begin_command(self, message: str) -> None:
         if self.status_progress is not None:
             try:
+                self.status_progress.stop()
+                self.status_progress["mode"] = "indeterminate"
                 self.status_progress.start(12)
             except Exception:
                 pass
@@ -4813,6 +5192,7 @@ class ScannerGUI:
         if self.status_progress is not None:
             try:
                 self.status_progress.stop()
+                self.status_progress["mode"] = "indeterminate"
             except Exception:
                 pass
         msg = "Completed successfully" if success else "Check log for errors"
@@ -4824,6 +5204,16 @@ class ScannerGUI:
             )
         except Exception:
             self._status_reset_job = None
+
+    def _update_progress_bar(self, percent: float) -> None:
+        if self.status_progress is not None:
+            try:
+                if self.status_progress["mode"] != "determinate":
+                    self.status_progress.stop()
+                    self.status_progress["mode"] = "determinate"
+                self.status_progress["value"] = percent
+            except Exception:
+                pass
 
     def _read_text_lines(self, widget) -> list[str]:
         if widget is None:
@@ -4865,31 +5255,20 @@ class ScannerGUI:
             widget.insert("1.0", content)
         setattr(self, saved_attr, content)
 
-    def _load_chemistry_profiles(self) -> Dict[str, Dict[str, List[str]]]:
-        profiles: Dict[str, Dict[str, List[str]]] = {}
+    def _load_chemistry_profiles(self) -> Dict[str, Dict[str, any]]:
+        profiles: Dict[str, Dict[str, any]] = {}
         for key, value in BUILTIN_CHEMISTRY_PROFILES.items():
-            entry: Dict[str, List[str]] = {}
-            for field in ("motifs", "motifs_forward", "motifs_reverse", "base_content", "max_repeat", "motif_self_comp"):
-                if field in value:
-                    entry[field] = list(value[field])
-            profiles[key] = entry
-        custom: Dict[str, Dict[str, List[str]]] = {}
+            profiles[key] = dict(value)
+        custom: Dict[str, Dict[str, any]] = {}
         if PROFILE_STORE_PATH.is_file():
             try:
                 with PROFILE_STORE_PATH.open("r", encoding="utf-8") as handle:
                     data = json.load(handle)
                 for name, payload in data.items():
-                    if not isinstance(payload, dict):
-                        continue
-                    entry: Dict[str, List[str]] = {}
-                    for field in ("motifs", "motifs_forward", "motifs_reverse", "base_content", "max_repeat", "motif_self_comp"):
-                        values = payload.get(field)
-                        if isinstance(values, list):
-                            entry[field] = [str(item) for item in values if str(item).strip()]
-                    if entry:
+                    if isinstance(payload, dict):
                         normalized = name.lower()
-                        custom[normalized] = entry
-                        profiles[normalized] = entry
+                        custom[normalized] = payload
+                        profiles[normalized] = payload
             except Exception:
                 custom = {}
         self.custom_profiles = custom
@@ -4917,7 +5296,8 @@ class ScannerGUI:
             options.append(display)
             mapping[display] = key
         self._profile_display_to_key = mapping
-        self.profile_selector["values"] = options
+        if hasattr(self, "profile_selector") and self.profile_selector:
+            self.profile_selector["values"] = options
         current = self.chemistry_profile_var.get()
         if current not in options:
             self.chemistry_profile_var.set("Custom (manual)")
@@ -4931,7 +5311,24 @@ class ScannerGUI:
         if not profile:
             messagebox.showerror("Profile error", f"No data found for profile '{display}'.")
             return
-        pass
+
+        def set_var(var, key_name):
+            if key_name in profile:
+                var.set(str(profile[key_name]))
+
+        # Standard parameters
+        set_var(self.window_var, "window")
+        set_var(self.step_var, "step")
+        set_var(self.workers_var, "workers")
+        set_var(self.output_name_var, "output_name")
+        if "forward_strand" in profile: self.forward_strand_var.set(bool(profile["forward_strand"]))
+        if "reverse_strand" in profile: self.reverse_strand_var.set(bool(profile["reverse_strand"]))
+        if "combined_strand" in profile: self.combined_strand_var.set(bool(profile["combined_strand"]))
+        set_var(self.combined_forward_var, "combined_forward_len")
+        set_var(self.combined_reverse_var, "combined_reverse_len")
+        set_var(self.combined_overlap_var, "combined_overlap")
+
+        # Nucleotide multi-line widgets
         if "motifs" in profile:
             self._set_multiline_widget(self.motif_widget, "_saved_motif_text", profile["motifs"])
         if "motifs_forward" in profile:
@@ -4942,8 +5339,11 @@ class ScannerGUI:
             self._set_multiline_widget(self.base_widget, "_saved_base_text", profile["base_content"])
         if "max_repeat" in profile:
             self._set_multiline_widget(self.repeat_widget, "_saved_repeat_text", profile["max_repeat"])
+        if "exclude_nt_motifs" in profile:
+            self._set_multiline_widget(self.exclude_motif_widget, "_saved_exclude_text", profile["exclude_nt_motifs"])
+
+        # Self-complementarity
         if "motif_self_comp" in profile:
-            # Legacy: load CLI spec strings back into the rules list
             lb = getattr(self, "_sc_rules_listbox", None)
             if lb is not None:
                 lb.delete(0, END)
@@ -4954,30 +5354,179 @@ class ScannerGUI:
                     self._self_comp_rules.append(rule)
                     if lb is not None:
                         lb.insert(END, self._sc_rule_label(rule))
-        self._update_reactive_oligo()
+
+        # Intrastrand / Interstrand / Palindrome filters
+        if "require_palindrome" in profile: self.require_palindrome_var.set(bool(profile["require_palindrome"]))
+        set_var(self.palindrome_min_len_var, "palindrome_min_len")
+        if "require_intrastrand" in profile: self.require_intrastrand_var.set(bool(profile["require_intrastrand"]))
+        set_var(self.intrastrand_min_len_var, "intrastrand_min_len")
+        set_var(self.intrastrand_max_len_var, "intrastrand_max_len")
+        set_var(self.intrastrand_mismatches_var, "intrastrand_mismatches")
+        set_var(self.intrastrand_gap_min_var, "intrastrand_gap_min")
+        set_var(self.intrastrand_gap_max_var, "intrastrand_gap_max")
+        if "require_interstrand" in profile: self.require_interstrand_var.set(bool(profile["require_interstrand"]))
+        set_var(self.interstrand_min_len_var, "interstrand_min_len")
+        set_var(self.interstrand_max_len_var, "interstrand_max_len")
+        set_var(self.interstrand_mismatches_var, "interstrand_mismatches")
+        set_var(self.interstrand_gap_min_var, "interstrand_gap_min")
+        set_var(self.interstrand_gap_max_var, "interstrand_gap_max")
+        if "non_overlapping" in profile: self.non_overlapping_var.set(bool(profile["non_overlapping"]))
+
+        if "sequence_filter" in profile:
+            self._set_multiline_widget(self.sequence_filter_widget, "_saved_seq_filter", profile["sequence_filter"])
+        if "region_filter" in profile:
+            self._set_multiline_widget(self.region_filter_widget, "_saved_reg_filter", profile["region_filter"])
+
+        # Peptide Search parameters
+        set_var(self.peptide_window_var, "pep_window")
+        set_var(self.peptide_step_var, "pep_step")
+        set_var(self.peptide_max_mismatches_var, "pep_mismatches")
+        set_var(self.peptide_workers_var, "pep_workers")
+        if "pep_motifs" in profile:
+            self._set_multiline_widget(self.peptide_motif_widget, "_saved_pep_motif", profile["pep_motifs"])
+        if "exclude_pep_motifs" in profile:
+            self._set_multiline_widget(self.peptide_exclude_widget, "_saved_pep_exclude", profile["exclude_pep_motifs"])
+        if "amino_content" in profile:
+            self._set_multiline_widget(self.amino_content_widget, "_saved_pep_amino", profile["amino_content"])
+        if "pep_repeats" in profile:
+            self._set_multiline_widget(self.peptide_repeat_widget, "_saved_pep_repeat", profile["pep_repeats"])
+        if "frames" in profile:
+            frames_list = profile["frames"]
+            for fid, fv in self.peptide_frame_vars.items():
+                fv.set(fid in frames_list)
+
+        # Combined Search subwindow coordinates
+        set_var(self.combined_pep_mismatches_var, "combined_pep_mismatches")
+        set_var(self.combined_comb_fwd_var, "combined_comb_fwd")
+        set_var(self.combined_comb_rev_var, "combined_comb_rev")
+        set_var(self.combined_comb_overlap_var, "combined_comb_overlap")
+        set_var(self.combined_nt_sub_window_var, "combined_nt_sub_window")
+        set_var(self.combined_nt_sub_offset_var, "combined_nt_sub_offset")
+        set_var(self.combined_pep_sub_window_var, "combined_pep_sub_window")
+        set_var(self.combined_pep_sub_offset_var, "combined_pep_sub_offset")
+        
+        # Triplex finder settings
+        set_var(self.triplex_min_len_var, "triplex_min_len")
+        set_var(self.triplex_max_len_var, "triplex_max_len")
+        set_var(self.triplex_min_score_var, "triplex_min_score")
+        set_var(self.triplex_max_mismatches_var, "triplex_max_mismatches")
+        set_var(self.triplex_workers_var, "triplex_workers")
+        if "triplex_forward" in profile: self.triplex_forward_var.set(bool(profile["triplex_forward"]))
+        if "triplex_reverse" in profile: self.triplex_reverse_var.set(bool(profile["triplex_reverse"]))
+        set_var(self.split_window_var, "split_window")
+        set_var(self.split_step_var, "split_step")
+        set_var(self.split_min_length_var, "split_min_length")
+        if "split_include_partial" in profile: self.split_include_partial_var.set(bool(profile["split_include_partial"]))
+        set_var(self.score_min_score_var, "score_min_score")
+        set_var(self.score_min_pyrimidine_var, "score_min_pyrimidine")
+        set_var(self.score_min_spacing_var, "score_min_spacing")
+
+        # Refresh Combined summary if visible
+        try:
+            self._update_combined_summary()
+        except Exception:
+            pass
+
+        self.append_log(f"Applied unified search profile: {display}")
 
     def _prompt_save_profile(self) -> None:
-        pass
-        name = simpledialog.askstring("Save chemistry profile", "Profile name:")
+        name = simpledialog.askstring("Save Search Profile", "Profile name:")
         if not name:
             return
         key = name.strip().lower()
         if not key:
             return
+        
+        # Build the payload with all configuration variables
         profile = {
+            # Standard parameters
+            "window": self.window_var.get(),
+            "step": self.step_var.get(),
+            "workers": self.workers_var.get(),
+            "output_name": self.output_name_var.get(),
+            "forward_strand": self.forward_strand_var.get(),
+            "reverse_strand": self.reverse_strand_var.get(),
+            "combined_strand": self.combined_strand_var.get(),
+            "combined_forward_len": self.combined_forward_var.get(),
+            "combined_reverse_len": self.combined_reverse_var.get(),
+            "combined_overlap": self.combined_overlap_var.get(),
+
+            # Nucleotide multi-line widgets
             "motifs": self._get_advanced_lines(self.motif_widget, "_saved_motif_text"),
             "motifs_forward": self._get_advanced_lines(self.forward_motif_widget, "_saved_forward_motif_text"),
             "motifs_reverse": self._get_advanced_lines(self.reverse_motif_widget, "_saved_reverse_motif_text"),
             "base_content": self._get_advanced_lines(self.base_widget, "_saved_base_text"),
             "max_repeat": self._get_advanced_lines(self.repeat_widget, "_saved_repeat_text"),
+            "exclude_nt_motifs": self._get_advanced_lines(self.exclude_motif_widget, "_saved_exclude_text"),
+
+            # Self-complementarity
             "motif_self_comp": self._sc_rules_to_cli_args(),
+
+            # Filters
+            "require_palindrome": self.require_palindrome_var.get(),
+            "palindrome_min_len": self.palindrome_min_len_var.get(),
+            "require_intrastrand": self.require_intrastrand_var.get(),
+            "intrastrand_min_len": self.intrastrand_min_len_var.get(),
+            "intrastrand_max_len": self.intrastrand_max_len_var.get(),
+            "intrastrand_mismatches": self.intrastrand_mismatches_var.get(),
+            "intrastrand_gap_min": self.intrastrand_gap_min_var.get(),
+            "intrastrand_gap_max": self.intrastrand_gap_max_var.get(),
+            "require_interstrand": self.require_interstrand_var.get(),
+            "interstrand_min_len": self.interstrand_min_len_var.get(),
+            "interstrand_max_len": self.interstrand_max_len_var.get(),
+            "interstrand_mismatches": self.interstrand_mismatches_var.get(),
+            "interstrand_gap_min": self.interstrand_gap_min_var.get(),
+            "interstrand_gap_max": self.interstrand_gap_max_var.get(),
+            "non_overlapping": self.non_overlapping_var.get(),
+            
+            "sequence_filter": self._get_advanced_lines(self.sequence_filter_widget, "_saved_seq_filter"),
+            "region_filter": self._get_advanced_lines(self.region_filter_widget, "_saved_reg_filter"),
+
+            # Peptide Search
+            "pep_window": self.peptide_window_var.get(),
+            "pep_step": self.peptide_step_var.get(),
+            "pep_mismatches": self.peptide_max_mismatches_var.get(),
+            "pep_workers": self.peptide_workers_var.get(),
+            "pep_motifs": self._get_advanced_lines(self.peptide_motif_widget, "_saved_pep_motif"),
+            "exclude_pep_motifs": self._get_advanced_lines(self.peptide_exclude_widget, "_saved_pep_exclude"),
+            "amino_content": self._get_advanced_lines(self.amino_content_widget, "_saved_pep_amino"),
+            "pep_repeats": self._get_advanced_lines(self.peptide_repeat_widget, "_saved_pep_repeat"),
+            "frames": [f for f, v in self.peptide_frame_vars.items() if v.get()],
+
+            # Combined Search
+            "combined_pep_mismatches": self.combined_pep_mismatches_var.get(),
+            "combined_comb_fwd": self.combined_comb_fwd_var.get(),
+            "combined_comb_rev": self.combined_comb_rev_var.get(),
+            "combined_comb_overlap": self.combined_comb_overlap_var.get(),
+            "combined_nt_sub_window": self.combined_nt_sub_window_var.get(),
+            "combined_nt_sub_offset": self.combined_nt_sub_offset_var.get(),
+            "combined_pep_sub_window": self.combined_pep_sub_window_var.get(),
+            "combined_pep_sub_offset": self.combined_pep_sub_offset_var.get(),
+            
+            # Triplex Finder
+            "triplex_min_len": self.triplex_min_len_var.get(),
+            "triplex_max_len": self.triplex_max_len_var.get(),
+            "triplex_min_score": self.triplex_min_score_var.get(),
+            "triplex_max_mismatches": self.triplex_max_mismatches_var.get(),
+            "triplex_workers": self.triplex_workers_var.get(),
+            "triplex_forward": self.triplex_forward_var.get(),
+            "triplex_reverse": self.triplex_reverse_var.get(),
+            "split_window": self.split_window_var.get(),
+            "split_step": self.split_step_var.get(),
+            "split_min_length": self.split_min_length_var.get(),
+            "split_include_partial": self.split_include_partial_var.get(),
+            "score_min_score": self.score_min_score_var.get(),
+            "score_min_pyrimidine": self.score_min_pyrimidine_var.get(),
+            "score_min_spacing": self.score_min_spacing_var.get(),
         }
+        
         self.custom_profiles[key] = profile
         self._write_profile_store()
         self.chemistry_profiles = self._load_chemistry_profiles()
         self._refresh_profile_options()
-        messagebox.showinfo("Success", f"Chemistry profile '{name}' saved to chemistry_profiles.json")
-        self.append_log(f"Saved chemistry profile '{name}'")
+        self.chemistry_profile_var.set(name.strip().title())
+        messagebox.showinfo("Success", f"Search profile '{name}' saved.")
+        self.append_log(f"Saved unified search profile '{name}'")
 
     def _delete_selected_profile(self) -> None:
         display = self.chemistry_profile_var.get()
@@ -5033,18 +5582,26 @@ class ScannerGUI:
         if viz_only:
             defaults["viz_hits_var"] = str(viz_only)
 
-        gbff = pick_first(["*.gbff"])
-        if gbff:
-            defaults["gbff_var"] = str(gbff)
-        gff3 = pick_first(["*.gff3"])
-        if gff3:
-            defaults["gff3_var"] = str(gff3)
-        gff = pick_first(["*.gff"])
-        if gff:
-            defaults.setdefault("gff_var", str(gff))
-        gtf = pick_first(["*.gtf"])
-        if gtf:
-            defaults["gtf_var"] = str(gtf)
+        # Auto-fill a single primary GFF-family annotation source. GFF3, GFF and
+        # GTF all describe the same genes; the GBFF additionally repeats the gene
+        # coordinates. Parsing several of them per run multiplies the cost (each
+        # is hundreds of MB to several GB) with no gain in annotation quality, so
+        # we populate only the richest available source by priority. The GBFF and
+        # the redundant formats are left blank — users who specifically need them
+        # can still Browse to them in the annotation-override fields.
+        primary = pick_first(["*.gff3"])
+        if primary:
+            defaults["gff3_var"] = str(primary)
+        else:
+            primary = pick_first(["*.gff"])
+            if primary:
+                defaults["gff_var"] = str(primary)
+            else:
+                primary = pick_first(["*.gtf"])
+                if primary:
+                    defaults["gtf_var"] = str(primary)
+        # GPFF is complementary, not redundant: it supplies the actual protein
+        # sequences keyed by protein_id, which the GFF/GTF sources do not carry.
         gpff = pick_first(["*.gpff"])
         if gpff:
             defaults["gpff_var"] = str(gpff)

@@ -10,7 +10,8 @@ import os
 import re
 import sys
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, as_completed, wait
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterable, List, Pattern, Sequence, Set, Tuple
@@ -19,11 +20,16 @@ try:
     from cython_helpers import count_iupac_motif as cython_count_iupac_motif
     from cython_helpers import longest_run as cython_longest_run
     from cython_helpers import scan_windows_fast as cython_scan_windows_fast
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    from cython_helpers import find_longest_intrastrand_complement_cython
+    from cython_helpers import find_longest_interstrand_complement_cython
+    from cython_helpers import g4hunter_score as cython_g4hunter_score
+except (ModuleNotFoundError, ImportError):  # pragma: no cover - optional dependency
     cython_count_iupac_motif = None
     cython_longest_run = None
     cython_scan_windows_fast = None
-
+    find_longest_intrastrand_complement_cython = None
+    find_longest_interstrand_complement_cython = None
+    cython_g4hunter_score = None
 BASES = ("A", "C", "G", "T")
 IUPAC_CODES = {
     "A": "A",
@@ -44,8 +50,13 @@ IUPAC_CODES = {
     "N": "[ACGT]",
 }
 
-RC_MAP = str.maketrans("ACGTRYKMSWBDHVN", "TGCAYRMKSWVHDBN")
-COMPLEMENT = {a: b for a, b in zip("ACGTRYKMSWBDHVN", "TGCAYRMKSWVHDBN")}
+# U is included so RNA sequences reverse-complement correctly (U pairs with A).
+# A maps to T here; RNA output is rendered by converting T->U at the end.
+RC_MAP = str.maketrans(
+    "ACGTURYKMSWBDHVNacgturykmswbdhvn",
+    "TGCAAYRMKSWVHDBNtgcaayrmkswvhdbn",
+)
+COMPLEMENT = {a: b for a, b in zip("ACGTURYKMSWBDHVN", "TGCAAYRMKSWVHDBN")}
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROFILE_STORE = SCRIPT_DIR.parent / "chemistry_profiles.json"
 CHEMISTRY_PROFILES = {
@@ -141,6 +152,7 @@ class RuntimeOptions:
 
     use_gpu: bool = False
     vectorized_base: bool = False
+    gpu_kernels: bool = False
 
 
 def normalize_seq_name(name: str | None) -> str:
@@ -424,6 +436,86 @@ def build_parser() -> argparse.ArgumentParser:
         help="Minimum palindromic sequence length evaluated for filtering/reporting (default: 8).",
     )
     parser.add_argument(
+        "--require-intrastrand",
+        action="store_true",
+        help="Require each reported window to contain an intrastrand complementary sequence (inverted repeat).",
+    )
+    parser.add_argument(
+        "--intrastrand-min-len",
+        type=int,
+        default=6,
+        metavar="N",
+        help="Minimum length of intrastrand complementary sequence (default: 6).",
+    )
+    parser.add_argument(
+        "--intrastrand-max-len",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum length of intrastrand complementary sequence (default: None/no limit).",
+    )
+    parser.add_argument(
+        "--require-interstrand",
+        action="store_true",
+        help="Require each reported window to contain an interstrand complementary sequence (direct repeat).",
+    )
+    parser.add_argument(
+        "--interstrand-min-len",
+        type=int,
+        default=6,
+        metavar="N",
+        help="Minimum length of interstrand complementary sequence (default: 6).",
+    )
+    parser.add_argument(
+        "--interstrand-max-len",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum length of interstrand complementary sequence (default: None/no limit).",
+    )
+    parser.add_argument(
+        "--intrastrand-mismatches",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Allowed mismatches for intrastrand complementary sequence (default: 0).",
+    )
+    parser.add_argument(
+        "--intrastrand-gap-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Minimum gap length in nucleotides between intrastrand complementary strands (default: 0).",
+    )
+    parser.add_argument(
+        "--intrastrand-gap-max",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum gap length in nucleotides between intrastrand complementary strands (default: None/no limit).",
+    )
+    parser.add_argument(
+        "--interstrand-mismatches",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Allowed mismatches for interstrand complementary sequence (default: 0).",
+    )
+    parser.add_argument(
+        "--interstrand-gap-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Minimum gap length in nucleotides between interstrand complementary strands (default: 0).",
+    )
+    parser.add_argument(
+        "--interstrand-gap-max",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum gap length in nucleotides between interstrand complementary strands (default: None/no limit).",
+    )
+    parser.add_argument(
         "--output-prefix",
         default="nt_sequence_hits",
         help="Prefix for the tab-delimited output file (default: nt_sequence_hits)",
@@ -452,6 +544,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--use-gpu",
         action="store_true",
         help="Attempt to offload base-content prefilters to CuPy (GPU) when available.",
+    )
+    parser.add_argument(
+        "--gpu-kernels",
+        action="store_true",
+        help=(
+            "Use the custom CUDA RawKernels in mako_gpu for the base-content "
+            "prefilter (instead of the high-level CuPy path). Opt-in: validate "
+            "with scripts/tests/test_cpu_gpu_parity.py on your GPU first. Has no "
+            "effect unless the GPU engine is active."
+        ),
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["auto", "cpu", "gpu"],
+        default="auto",
+        help=(
+            "Execution engine. 'auto' uses a CUDA GPU when one is detected and "
+            "falls back to CPU otherwise; 'cpu' forces CPU; 'gpu' requests the GPU "
+            "and falls back to CPU with a warning if unavailable. Results are "
+            "identical across engines. (--use-gpu remains as an alias for 'gpu'.)"
+        ),
     )
     parser.add_argument(
         "--chemistry-profile",
@@ -506,6 +619,57 @@ def build_parser() -> argparse.ArgumentParser:
             "    Example: GGGN{1,7}GGG:whole:3,5:0,2  (scan all non-overlapping pairs 3-5 bp long, 0-2 mm)\n"
             "Legacy format PATTERN:START1,LEN1:START2,LEN2[:MAX_MM] is still accepted."
         ),
+    )
+    parser.add_argument(
+        "--sequence-type",
+        choices=["auto", "dna", "rna"],
+        default="auto",
+        help=(
+            "Nucleic-acid alphabet of the input FASTA. 'rna' (or auto-detected RNA, "
+            "e.g. viral RNA genomes) analyses U as T and writes sequence columns "
+            "using U; 'dna' uses T. Motifs and base/repeat constraints accept U or T "
+            "interchangeably regardless. Default: auto-detect."
+        ),
+    )
+    parser.add_argument(
+        "--min-g4hunter",
+        type=float,
+        default=None,
+        metavar="SCORE",
+        help=(
+            "Optional post-scan filter: keep only hits whose matched motif (or the "
+            "window, if no motif is searched) has a canonical G4Hunter score >= SCORE. "
+            "Adds a 'best_g4hunter' column. The score is signed (positive = G4/G-rich, "
+            "negative = i-motif/C-rich); typical G4 thresholds are ~1.0-1.5."
+        ),
+    )
+    parser.add_argument(
+        "--stream-output",
+        action="store_true",
+        help=(
+            "Write hits incrementally to a crash-safe JSONL sidecar and checkpoint "
+            "per sequence, then finalize the usual TSV. Sequences are processed in a "
+            "deterministic order so an interrupted run can resume without duplicates. "
+            "Recommended for very long, genome-scale searches."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint",
+        metavar="PATH",
+        default=None,
+        help="Checkpoint file path (default: <output_dir>/<prefix>.checkpoint.json). Implies --stream-output.",
+    )
+    parser.add_argument(
+        "--flush-every",
+        type=int,
+        default=5000,
+        metavar="N",
+        help="Stream mode: flush+fsync the JSONL sidecar every N hits (default: 5000).",
+    )
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="Stream mode: ignore and overwrite any existing checkpoint/JSONL instead of resuming.",
     )
     return parser
 
@@ -851,8 +1015,10 @@ def parse_base_content_specs(
             parser.error(f"Base content specification '{raw_spec}' must be BASE:MIN:MAX.")
         base, min_part, max_part = parts
         base = base.strip().upper()
+        if base == "U":  # RNA: treat uracil as thymine
+            base = "T"
         if base not in BASES:
-            parser.error(f"Base content only supports A, C, G, or T (got '{base}').")
+            parser.error(f"Base content only supports A, C, G, T, or U (got '{base}').")
         try:
             min_pct = float(min_part)
             max_pct = float(max_part)
@@ -873,8 +1039,10 @@ def parse_max_repeat_specs(parser: argparse.ArgumentParser, specs: Sequence[str]
             parser.error(f"Repeat specification '{raw_spec}' must be BASE:MAX.")
         base_part, max_part = raw_spec.split(":", 1)
         base = base_part.strip().upper()
+        if base == "U":  # RNA: treat uracil as thymine
+            base = "T"
         if base not in BASES:
-            parser.error(f"Repeat constraints only support bases A, C, G, or T (got '{base}').")
+            parser.error(f"Repeat constraints only support bases A, C, G, T, or U (got '{base}').")
         try:
             limit = int(max_part)
         except ValueError as exc:
@@ -1095,24 +1263,148 @@ def _gpu_candidate_positions(
     return selected.astype(int).tolist()
 
 
+_BASE_NIBBLE = {"A": 1, "C": 2, "G": 4, "T": 8, "U": 8}
+
+
+def _extract_fixed_motifs(motifs: Sequence[MotifConstraint] | None) -> List[Tuple[List[int], int]]:
+    """Per-position IUPAC masks + required count for fixed-length motifs only.
+
+    A motif is "fixed" when every token is a single position (min==max==1), i.e.
+    it has no quantifiers. Such motifs admit an exact superset prefilter on the
+    GPU (overlapping count >= required); variable-length motifs are skipped here
+    and matched entirely on the CPU.
+    """
+    fixed: List[Tuple[List[int], int]] = []
+    for constraint in motifs or []:
+        tokens = constraint.tokens or build_pattern_tokens(constraint.pattern)
+        if not tokens:
+            continue
+        masks: List[int] = []
+        ok = True
+        for token in tokens:
+            if token.min_repeat != 1 or token.max_repeat != 1:
+                ok = False
+                break
+            mask = 0
+            for base in token.allowed:
+                mask |= _BASE_NIBBLE.get(base.upper(), 0)
+            masks.append(mask)
+        if ok and masks:
+            fixed.append((masks, int(constraint.required_count)))
+    return fixed
+
+
 def build_candidate_positions(
     sequence: str,
     window: int,
     step: int,
     base_constraints: Dict[str, Tuple[float, float]],
     runtime: RuntimeOptions | None,
+    repeat_constraints: Dict[str, int] | None = None,
+    motifs: Sequence[MotifConstraint] | None = None,
 ) -> List[int] | None:
-    if not runtime or not base_constraints:
+    if not runtime:
         return None
     if runtime.use_gpu:
-        gpu_positions = _gpu_candidate_positions(sequence, window, step, base_constraints)
-        if gpu_positions is not None:
-            return gpu_positions
+        # Every CuPy path — custom RawKernels AND high-level ops like cumsum —
+        # is JIT-compiled by NVRTC, which needs the CUDA toolkit headers. Probe
+        # once; if compilation is impossible (e.g. headers missing) skip all GPU
+        # work and fall back, instead of crashing mid-scan.
+        gpu_ok = False
+        try:
+            import mako_gpu
+
+            gpu_ok = mako_gpu.kernels_available()
+        except Exception:  # pragma: no cover
+            gpu_ok = False
+        if gpu_ok:
+            if runtime.gpu_kernels:
+                # Custom fused RawKernel (opt-in). Returns an exact superset.
+                try:
+                    fixed_motifs = _extract_fixed_motifs(motifs)
+                    if base_constraints or repeat_constraints or fixed_motifs:
+                        fused = mako_gpu.fused_predicate_prefilter(
+                            sequence, window, step, base_constraints or {},
+                            repeat_constraints or {}, fixed_motifs,
+                        )
+                        if fused is not None:
+                            return fused
+                except Exception:  # pragma: no cover - kernel/driver issue → fall through
+                    pass
+            if base_constraints:
+                try:
+                    gpu_positions = _gpu_candidate_positions(sequence, window, step, base_constraints)
+                    if gpu_positions is not None:
+                        return gpu_positions
+                except Exception:  # pragma: no cover
+                    pass
+    if not base_constraints:
+        return None
     if runtime.vectorized_base:
         vector_positions = _vectorized_candidate_positions(sequence, window, step, base_constraints)
         if vector_positions is not None:
             return vector_positions
     return None
+
+
+def detect_gpu_capabilities() -> Dict[str, object]:
+    """Probe for a usable CUDA device at startup.
+
+    Returns a dict describing availability and, when present, the device name,
+    compute capability and total memory. Never raises: any failure to import the
+    GPU backend or query the driver is reported as ``available=False`` with a
+    reason so callers can transparently fall back to the CPU engine.
+    """
+    info: Dict[str, object] = {
+        "available": False,
+        "backend": None,
+        "device": None,
+        "compute_capability": None,
+        "total_mem_bytes": None,
+        "reason": "",
+    }
+    try:
+        import cupy as cp  # type: ignore
+    except Exception as exc:  # ImportError, or a CuPy install with a broken CUDA runtime
+        info["reason"] = f"CuPy unavailable ({exc.__class__.__name__})"
+        return info
+    try:
+        if cp.cuda.runtime.getDeviceCount() <= 0:
+            info["reason"] = "no CUDA devices detected"
+            return info
+        props = cp.cuda.runtime.getDeviceProperties(0)
+        name = props["name"]
+        _free, total = cp.cuda.Device(0).mem_info
+        info.update(
+            {
+                "available": True,
+                "backend": "cupy",
+                "device": name.decode() if isinstance(name, (bytes, bytearray)) else str(name),
+                "compute_capability": f"{props['major']}.{props['minor']}",
+                "total_mem_bytes": int(total),
+            }
+        )
+    except Exception as exc:  # driver/runtime mismatch, no permission, etc.
+        info["reason"] = f"CUDA query failed ({exc.__class__.__name__}: {exc})"
+    return info
+
+
+def resolve_engine(requested: str, use_gpu_flag: bool, caps: Dict[str, object]) -> str:
+    """Resolve the concrete engine ('cpu' or 'gpu') from the requested mode.
+
+    'auto' picks the GPU when available, else CPU. An explicit 'gpu' request that
+    cannot be satisfied degrades to CPU (the caller is expected to warn). The
+    legacy ``--use-gpu`` flag is treated as requesting 'gpu' when the mode is
+    left at its 'auto' default.
+    """
+    mode = (requested or "auto").lower()
+    if use_gpu_flag and mode == "auto":
+        mode = "gpu"
+    if mode == "auto":
+        return "gpu" if caps.get("available") else "cpu"
+    if mode == "gpu" and not caps.get("available"):
+        return "cpu"
+    return mode
 
 
 def _py_longest_run(subseq: str, base: str) -> int:
@@ -1274,6 +1566,37 @@ def reverse_complement(sequence: str) -> str:
     return sequence.translate(RC_MAP)[::-1]
 
 
+def g4hunter_best_score(sequence: str) -> float:
+    """Canonical G4Hunter score (Bedrat, Lacroix & Mergny 2016): the signed mean
+    of per-base run-length scores (+min(run,4) within G-tracts, -min(run,4)
+    within C-tracts, 0 otherwise). Positive => G-quadruplex propensity, negative
+    => i-motif. U is treated as T (irrelevant: the score depends only on G/C)."""
+    if not sequence:
+        return 0.0
+    if cython_g4hunter_score is not None:
+        return cython_g4hunter_score(sequence, 0)
+    seq = sequence.upper()
+    n = len(seq)
+    scores = [0] * n
+    i = 0
+    while i < n:
+        base = seq[i]
+        if base == "G" or base == "C":
+            j = i
+            while j < n and seq[j] == base:
+                j += 1
+            run = j - i
+            val = run if run < 4 else 4
+            if base == "C":
+                val = -val
+            for k in range(i, j):
+                scores[k] = val
+            i = j
+        else:
+            i += 1
+    return sum(scores) / n if n else 0.0
+
+
 def find_longest_palindrome(sequence: str) -> Tuple[int, int]:
     seq = sequence.upper()
     n = len(seq)
@@ -1304,6 +1627,128 @@ def find_longest_palindrome(sequence: str) -> Tuple[int, int]:
     return best_start, best_end
 
 
+def find_longest_intrastrand_complement(
+    seq: str,
+    min_len: int,
+    max_len: int | None = None,
+    allowed_mismatches: int = 0,
+    gap_min_len: int = 0,
+    gap_max_len: int | None = None
+) -> Tuple[int, int, int]:
+    """Finds the longest non-overlapping pair of reverse-complementary substrings in seq.
+    Returns (start1, start2, length) where start1 < start2.
+    """
+    if find_longest_intrastrand_complement_cython is not None:
+        return find_longest_intrastrand_complement_cython(
+            seq, min_len, max_len, allowed_mismatches, gap_min_len, gap_max_len
+        )
+
+    seq = seq.upper()
+    n = len(seq)
+    best_len = 0
+    best_i = -1
+    best_j = -1
+
+    for i in range(n - 2 * min_len - gap_min_len + 1):
+        j_start = i + 2 * max(min_len, best_len + 1) + gap_min_len - 1
+        j_end = n
+        if max_len is not None and gap_max_len is not None:
+            j_end = min(j_end, i + 2 * max_len + gap_max_len)
+
+        for j in range(j_start, j_end):
+            max_possible = (j - i + 1 - gap_min_len) // 2
+            if max_len is not None:
+                max_possible = min(max_possible, max_len)
+            
+            if max_possible <= best_len:
+                continue
+
+            mismatches = 0
+            curr_best_len = 0
+            for length in range(1, max_possible + 1):
+                left_base = seq[i + length - 1]
+                right_base = seq[j - length + 1]
+                comp = COMPLEMENT.get(right_base, right_base)
+                if left_base != comp:
+                    mismatches += 1
+                if mismatches > allowed_mismatches:
+                    break
+                
+                # Check gap constraints for this length
+                gap = j - i - 2 * length + 1
+                if gap >= gap_min_len and (gap_max_len is None or gap <= gap_max_len):
+                    curr_best_len = length
+            
+            if curr_best_len >= min_len and curr_best_len > best_len:
+                best_len = curr_best_len
+                best_i = i
+                best_j = j
+
+    return best_i, best_j, best_len
+
+
+def find_longest_interstrand_complement(
+    seq: str,
+    min_len: int,
+    max_len: int | None = None,
+    allowed_mismatches: int = 0,
+    gap_min_len: int = 0,
+    gap_max_len: int | None = None
+) -> Tuple[int, int, int]:
+    """Finds the longest non-overlapping pair of identical substrings in seq.
+    Returns (start1, start2, length) where start1 < start2.
+    """
+    if find_longest_interstrand_complement_cython is not None:
+        return find_longest_interstrand_complement_cython(
+            seq, min_len, max_len, allowed_mismatches, gap_min_len, gap_max_len
+        )
+
+    seq = seq.upper()
+    n = len(seq)
+    best_len = 0
+    best_i = -1
+    best_j = -1
+
+    for i in range(n - 2 * min_len - gap_min_len + 1):
+        j_start = i + max(min_len, best_len + 1) + gap_min_len
+        j_end = n - max(min_len, best_len + 1) + 1
+        if gap_max_len is not None:
+            j_end = min(j_end, (n + i + gap_max_len) // 2 + 1)
+            if max_len is not None:
+                j_end = min(j_end, i + max_len + gap_max_len + 1)
+
+        for j in range(j_start, j_end):
+            max_possible = min(j - i - gap_min_len, n - j)
+            if max_len is not None:
+                max_possible = min(max_possible, max_len)
+            
+            if max_possible <= best_len:
+                continue
+
+            mismatches = 0
+            curr_best_len = 0
+            for length in range(1, max_possible + 1):
+                if seq[i + length - 1] != seq[j + length - 1]:
+                    mismatches += 1
+                if mismatches > allowed_mismatches:
+                    break
+                
+                # Check gap constraints for this length
+                gap = j - i - length
+                if gap >= gap_min_len and (gap_max_len is None or gap <= gap_max_len):
+                    curr_best_len = length
+            
+            if curr_best_len >= min_len and curr_best_len > best_len:
+                best_len = curr_best_len
+                best_i = i
+                best_j = j
+
+    return best_i, best_j, best_len
+
+
+
+
+
 def build_hit_record(
     seq_id: str,
     display_sequence: str,
@@ -1318,12 +1763,16 @@ def build_hit_record(
     prefix_range: Tuple[int, int] | None = None,
     exclude_motifs: Sequence[ExcludeMotifConstraint] | None = None,
     palindrome_config: Dict[str, object] | None = None,
+    intrastrand_config: Dict[str, object] | None = None,
+    interstrand_config: Dict[str, object] | None = None,
     region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     max_motif_mismatches: int = 0,
     self_comp_constraints: Sequence[MotifSelfCompConstraint] | None = None,
     precalculated_motif_spans: List[List[Tuple[int, int]]] | None = None,
 ) -> Dict[str, object] | None:
     analysis = analysis_sequence.upper()
+    if "U" in analysis:  # RNA: analyse uracil as thymine (covers combined windows)
+        analysis = analysis.replace("U", "T")
     if not analysis:
         return None
     window_len = len(analysis)
@@ -1375,8 +1824,11 @@ def build_hit_record(
     pal_end = 0
     pal_len = 0
     pal_seq = ""
-    if palindrome_config:
-        palindrome_enabled = bool(palindrome_config.get("enabled"))
+    # Only run the (O(n^2)) palindrome search when the feature is explicitly
+    # enabled, so a default scan neither pays the cost nor emits palindrome
+    # columns. Disabled => no computation, no columns.
+    if palindrome_config and palindrome_config.get("enabled"):
+        palindrome_enabled = True
         try:
             palindrome_min_len = int(palindrome_config.get("min_len", 0))
         except (TypeError, ValueError):
@@ -1386,7 +1838,7 @@ def build_hit_record(
         pal_len = pal_end - pal_start
         if pal_len > 0:
             pal_seq = analysis[pal_start:pal_end]
-        if palindrome_enabled and pal_len < max(1, palindrome_min_len):
+        if pal_len < max(1, palindrome_min_len):
             return None
     if pal_len > 0:
         if strand_label == "-":
@@ -1398,6 +1850,113 @@ def build_hit_record(
     else:
         palindrome_start_coord = None
         palindrome_end_coord = None
+
+    # Intrastrand complementarity scan
+    intrastrand_enabled = False
+    intrastrand_min_len = 6
+    intrastrand_max_len = None
+    intra_len = 0
+    intra_seq = ""
+    intra_start1 = "NA"
+    intra_end1 = "NA"
+    intra_start2 = "NA"
+    intra_end2 = "NA"
+    if intrastrand_config and intrastrand_config.get("enabled"):
+        intrastrand_enabled = True
+        try:
+            intrastrand_min_len = max(1, int(intrastrand_config.get("min_len", 6) or 6))
+        except (TypeError, ValueError):
+            intrastrand_min_len = 6
+        try:
+            val = intrastrand_config.get("max_len")
+            intrastrand_max_len = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            intrastrand_max_len = None
+
+        intrastrand_mismatches = int(intrastrand_config.get("mismatches", 0) or 0)
+        intrastrand_gap_min = int(intrastrand_config.get("gap_min", 0) or 0)
+        try:
+            val = intrastrand_config.get("gap_max")
+            intrastrand_gap_max = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            intrastrand_gap_max = None
+
+        best_i, best_j, best_len = find_longest_intrastrand_complement(
+            analysis, intrastrand_min_len, intrastrand_max_len,
+            allowed_mismatches=intrastrand_mismatches,
+            gap_min_len=intrastrand_gap_min,
+            gap_max_len=intrastrand_gap_max
+        )
+        if best_len >= intrastrand_min_len:
+            intra_len = best_len
+            intra_seq = analysis[best_i : best_i + best_len]
+            if strand_label == "-":
+                intra_start1 = window_end - (best_i + best_len) + 1
+                intra_end1 = window_end - best_i
+                intra_start2 = window_end - best_j
+                intra_end2 = window_end - (best_j - best_len + 1)
+            else:
+                intra_start1 = window_start + best_i
+                intra_end1 = window_start + best_i + best_len - 1
+                intra_start2 = window_start + (best_j - best_len + 1)
+                intra_end2 = window_start + best_j
+        
+        if intra_len < intrastrand_min_len or (intrastrand_max_len is not None and intra_len > intrastrand_max_len):
+            return None
+
+    # Interstrand complementarity scan
+    interstrand_enabled = False
+    interstrand_min_len = 6
+    interstrand_max_len = None
+    inter_len = 0
+    inter_seq = ""
+    inter_start1 = "NA"
+    inter_end1 = "NA"
+    inter_start2 = "NA"
+    inter_end2 = "NA"
+    if interstrand_config and interstrand_config.get("enabled"):
+        interstrand_enabled = True
+        try:
+            interstrand_min_len = max(1, int(interstrand_config.get("min_len", 6) or 6))
+        except (TypeError, ValueError):
+            interstrand_min_len = 6
+        try:
+            val = interstrand_config.get("max_len")
+            interstrand_max_len = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            interstrand_max_len = None
+
+        interstrand_mismatches = int(interstrand_config.get("mismatches", 0) or 0)
+        interstrand_gap_min = int(interstrand_config.get("gap_min", 0) or 0)
+        try:
+            val = interstrand_config.get("gap_max")
+            interstrand_gap_max = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            interstrand_gap_max = None
+
+        best_i, best_j, best_len = find_longest_interstrand_complement(
+            analysis, interstrand_min_len, interstrand_max_len,
+            allowed_mismatches=interstrand_mismatches,
+            gap_min_len=interstrand_gap_min,
+            gap_max_len=interstrand_gap_max
+        )
+        if best_len >= interstrand_min_len:
+            inter_len = best_len
+            inter_seq = analysis[best_i : best_i + best_len]
+            if strand_label == "-":
+                inter_start1 = window_end - (best_i + best_len) + 1
+                inter_end1 = window_end - best_i
+                inter_start2 = window_end - (best_j + best_len) + 1
+                inter_end2 = window_end - best_j
+            else:
+                inter_start1 = window_start + best_i
+                inter_end1 = window_start + best_i + best_len - 1
+                inter_start2 = window_start + best_j
+                inter_end2 = window_start + best_j + best_len - 1
+
+        if inter_len < interstrand_min_len or (interstrand_max_len is not None and inter_len > interstrand_max_len):
+            return None
+
     self_comp_passed = False
     if self_comp_constraints:
         for comp_constraint in self_comp_constraints:
@@ -1427,6 +1986,18 @@ def build_hit_record(
         "palindrome_hairpin_length": pal_len,
         "palindrome_hairpin_start": palindrome_start_coord if palindrome_start_coord is not None else "NA",
         "palindrome_hairpin_end": palindrome_end_coord if palindrome_end_coord is not None else "NA",
+        "intrastrand_sequence": intra_seq.upper() if intra_len else "NA",
+        "intrastrand_length": intra_len,
+        "intrastrand_start1": intra_start1,
+        "intrastrand_end1": intra_end1,
+        "intrastrand_start2": intra_start2,
+        "intrastrand_end2": intra_end2,
+        "interstrand_sequence": inter_seq.upper() if inter_len else "NA",
+        "interstrand_length": inter_len,
+        "interstrand_start1": inter_start1,
+        "interstrand_end1": inter_end1,
+        "interstrand_start2": inter_start2,
+        "interstrand_end2": inter_end2,
     }
 
 
@@ -1446,7 +2017,9 @@ def build_hit_record_fast(
     pal_start_offset: int,
     pal_end_offset: int,
     palindrome_config: Dict[str, object] | None,
-    region_filters: Dict[str, List[Tuple[int, int]]] | None,
+    intrastrand_config: Dict[str, object] | None = None,
+    interstrand_config: Dict[str, object] | None = None,
+    region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     self_comp_constraints: Sequence[MotifSelfCompConstraint] | None = None,
     max_motif_mismatches: int = 0,
 ) -> Dict[str, object] | None:
@@ -1504,6 +2077,113 @@ def build_hit_record_fast(
             palindrome_end_coord = window_start + pal_end_offset - 1
         if palindrome_enabled and palindrome_len_value < max(1, palindrome_min_len):
             return None
+
+    # Intrastrand complementarity scan
+    intrastrand_enabled = False
+    intrastrand_min_len = 6
+    intrastrand_max_len = None
+    intra_len = 0
+    intra_seq = ""
+    intra_start1 = "NA"
+    intra_end1 = "NA"
+    intra_start2 = "NA"
+    intra_end2 = "NA"
+    if intrastrand_config and intrastrand_config.get("enabled"):
+        intrastrand_enabled = True
+        try:
+            intrastrand_min_len = max(1, int(intrastrand_config.get("min_len", 6) or 6))
+        except (TypeError, ValueError):
+            intrastrand_min_len = 6
+        try:
+            val = intrastrand_config.get("max_len")
+            intrastrand_max_len = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            intrastrand_max_len = None
+
+        intrastrand_mismatches = int(intrastrand_config.get("mismatches", 0) or 0)
+        intrastrand_gap_min = int(intrastrand_config.get("gap_min", 0) or 0)
+        try:
+            val = intrastrand_config.get("gap_max")
+            intrastrand_gap_max = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            intrastrand_gap_max = None
+
+        best_i, best_j, best_len = find_longest_intrastrand_complement(
+            analysis_sequence, intrastrand_min_len, intrastrand_max_len,
+            allowed_mismatches=intrastrand_mismatches,
+            gap_min_len=intrastrand_gap_min,
+            gap_max_len=intrastrand_gap_max
+        )
+        if best_len >= intrastrand_min_len:
+            intra_len = best_len
+            intra_seq = analysis_sequence[best_i : best_i + best_len]
+            if strand_label == "-":
+                intra_start1 = window_end - (best_i + best_len) + 1
+                intra_end1 = window_end - best_i
+                intra_start2 = window_end - best_j
+                intra_end2 = window_end - (best_j - best_len + 1)
+            else:
+                intra_start1 = window_start + best_i
+                intra_end1 = window_start + best_i + best_len - 1
+                intra_start2 = window_start + (best_j - best_len + 1)
+                intra_end2 = window_start + best_j
+        
+        if intra_len < intrastrand_min_len or (intrastrand_max_len is not None and intra_len > intrastrand_max_len):
+            return None
+
+    # Interstrand complementarity scan
+    interstrand_enabled = False
+    interstrand_min_len = 6
+    interstrand_max_len = None
+    inter_len = 0
+    inter_seq = ""
+    inter_start1 = "NA"
+    inter_end1 = "NA"
+    inter_start2 = "NA"
+    inter_end2 = "NA"
+    if interstrand_config and interstrand_config.get("enabled"):
+        interstrand_enabled = True
+        try:
+            interstrand_min_len = max(1, int(interstrand_config.get("min_len", 6) or 6))
+        except (TypeError, ValueError):
+            interstrand_min_len = 6
+        try:
+            val = interstrand_config.get("max_len")
+            interstrand_max_len = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            interstrand_max_len = None
+
+        interstrand_mismatches = int(interstrand_config.get("mismatches", 0) or 0)
+        interstrand_gap_min = int(interstrand_config.get("gap_min", 0) or 0)
+        try:
+            val = interstrand_config.get("gap_max")
+            interstrand_gap_max = int(val) if val is not None and str(val).strip() else None
+        except (TypeError, ValueError):
+            interstrand_gap_max = None
+
+        best_i, best_j, best_len = find_longest_interstrand_complement(
+            analysis_sequence, interstrand_min_len, interstrand_max_len,
+            allowed_mismatches=interstrand_mismatches,
+            gap_min_len=interstrand_gap_min,
+            gap_max_len=interstrand_gap_max
+        )
+        if best_len >= interstrand_min_len:
+            inter_len = best_len
+            inter_seq = analysis_sequence[best_i : best_i + best_len]
+            if strand_label == "-":
+                inter_start1 = window_end - (best_i + best_len) + 1
+                inter_end1 = window_end - best_i
+                inter_start2 = window_end - (best_j + best_len) + 1
+                inter_end2 = window_end - best_j
+            else:
+                inter_start1 = window_start + best_i
+                inter_end1 = window_start + best_i + best_len - 1
+                inter_start2 = window_start + best_j
+                inter_end2 = window_start + best_j + best_len - 1
+
+        if inter_len < interstrand_min_len or (interstrand_max_len is not None and inter_len > interstrand_max_len):
+            return None
+
     return {
         "sequence_id": seq_id,
         "strand": strand_label,
@@ -1519,6 +2199,18 @@ def build_hit_record_fast(
         "palindrome_hairpin_length": palindrome_len_value,
         "palindrome_hairpin_start": palindrome_start_coord,
         "palindrome_hairpin_end": palindrome_end_coord,
+        "intrastrand_sequence": intra_seq.upper() if intra_len else "NA",
+        "intrastrand_length": intra_len,
+        "intrastrand_start1": intra_start1,
+        "intrastrand_end1": intra_end1,
+        "intrastrand_start2": intra_start2,
+        "intrastrand_end2": intra_end2,
+        "interstrand_sequence": inter_seq.upper() if inter_len else "NA",
+        "interstrand_length": inter_len,
+        "interstrand_start1": inter_start1,
+        "interstrand_end1": inter_end1,
+        "interstrand_start2": inter_start2,
+        "interstrand_end2": inter_end2,
     }
 
 
@@ -1535,6 +2227,8 @@ def fast_scan_sequence(
     coord_transform: Callable[[int, int], Tuple[int, int]] | None = None,
     exclude_motifs: Sequence[ExcludeMotifConstraint] | None = None,
     palindrome_config: Dict[str, object] | None = None,
+    intrastrand_config: Dict[str, object] | None = None,
+    interstrand_config: Dict[str, object] | None = None,
     region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     non_overlapping: bool = False,
     candidate_positions: List[int] | None = None,
@@ -1596,13 +2290,72 @@ def fast_scan_sequence(
             pal_rel_start,
             pal_rel_end,
             palindrome_config or {},
-            region_filters,
-            self_comp_constraints,
-            max_motif_mismatches,
+            intrastrand_config=intrastrand_config,
+            interstrand_config=interstrand_config,
+            region_filters=region_filters,
+            self_comp_constraints=self_comp_constraints,
+            max_motif_mismatches=max_motif_mismatches,
         )
         if record:
             hits.append(record)
     return hits
+
+
+def _gpu_complement_narrow(
+    sequence: str,
+    window: int,
+    step: int,
+    candidate_positions: List[int] | None,
+    intrastrand_config: Dict[str, object] | None,
+    interstrand_config: Dict[str, object] | None,
+    runtime_options: RuntimeOptions | None,
+) -> List[int] | None:
+    """Optionally tighten candidate windows by the require-* complementarity bound
+    on the GPU. Exact match to the CPU require gate (the CPU recomputes the
+    reported coordinates), so it only ever drops windows that cannot pass. Any
+    failure leaves the candidates untouched."""
+    if not (runtime_options and runtime_options.use_gpu and runtime_options.gpu_kernels):
+        return candidate_positions
+
+    def _opt_int(value):
+        try:
+            return int(value) if value is not None and str(value).strip() != "" else None
+        except (ValueError, TypeError):
+            return None
+
+    specs: List[Tuple[str, int, int | None, int, int, int | None]] = []
+    for cfg, kind in ((intrastrand_config, "intra"), (interstrand_config, "inter")):
+        if cfg and cfg.get("enabled"):
+            min_len = int(cfg.get("min_len", 0) or 0)
+            if min_len <= 0:
+                continue
+            specs.append((
+                kind, min_len, _opt_int(cfg.get("max_len")),
+                int(cfg.get("mismatches", 0) or 0),
+                int(cfg.get("gap_min", 0) or 0), _opt_int(cfg.get("gap_max")),
+            ))
+    if not specs:
+        return candidate_positions
+    try:
+        import mako_gpu
+
+        if not mako_gpu.kernels_available():
+            return candidate_positions
+        starts = candidate_positions
+        if starts is None:
+            seq_len = len(sequence)
+            if seq_len < window:
+                return candidate_positions
+            starts = list(range(0, seq_len - window + 1, step))
+        for kind, min_len, max_len, mismatches, gap_min, gap_max in specs:
+            filtered = mako_gpu.complement_require_prefilter(
+                sequence, window, starts, kind, min_len, max_len, mismatches, gap_min, gap_max,
+            )
+            if filtered is not None:
+                starts = filtered
+        return starts
+    except Exception:  # pragma: no cover - any GPU issue → keep CPU candidates
+        return candidate_positions
 
 
 def scan_sequence(
@@ -1617,6 +2370,8 @@ def scan_sequence(
     coord_transform: Callable[[int, int], Tuple[int, int]] | None = None,
     exclude_motifs: Sequence[ExcludeMotifConstraint] | None = None,
     palindrome_config: Dict[str, object] | None = None,
+    intrastrand_config: Dict[str, object] | None = None,
+    interstrand_config: Dict[str, object] | None = None,
     region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     non_overlapping: bool = False,
     runtime_options: RuntimeOptions | None = None,
@@ -1629,12 +2384,23 @@ def scan_sequence(
         return hits
     display_source = sequence
     analysis_source = sequence.upper()
+    if "U" in analysis_source:  # RNA: analyse uracil as thymine across all paths
+        analysis_source = analysis_source.replace("U", "T")
     candidate_positions = build_candidate_positions(
         analysis_source,
         window,
         step,
         base_constraints,
         runtime_options,
+        repeat_constraints=repeat_constraints,
+        # Fixed-length motifs can be exactly superset-prefiltered on the GPU; only
+        # pass them when there is no per-motif mismatch tolerance (the regex/CPU
+        # path owns the mismatch case).
+        motifs=motifs if max_motif_mismatches <= 0 else None,
+    )
+    candidate_positions = _gpu_complement_narrow(
+        analysis_source, window, step, candidate_positions,
+        intrastrand_config, interstrand_config, runtime_options,
     )
     if max_motif_mismatches <= 0 and cython_scan_windows_fast is not None:
         return fast_scan_sequence(
@@ -1650,6 +2416,8 @@ def scan_sequence(
             coord_transform=coord_transform,
             exclude_motifs=exclude_motifs,
             palindrome_config=palindrome_config,
+            intrastrand_config=intrastrand_config,
+            interstrand_config=interstrand_config,
             region_filters=region_filters,
             non_overlapping=non_overlapping,
             candidate_positions=candidate_positions,
@@ -1684,6 +2452,8 @@ def scan_sequence(
             (start, end) if prefix_counts else None,
             exclude_motifs=exclude_motifs,
             palindrome_config=palindrome_config,
+            intrastrand_config=intrastrand_config,
+            interstrand_config=interstrand_config,
             region_filters=region_filters,
             max_motif_mismatches=max_motif_mismatches,
             self_comp_constraints=self_comp_constraints,
@@ -1718,6 +2488,8 @@ def scan_combined_windows(
     repeat_constraints: Dict[str, int],
     exclude_motifs: Sequence[ExcludeMotifConstraint] | None = None,
     palindrome_config: Dict[str, object] | None = None,
+    intrastrand_config: Dict[str, object] | None = None,
+    interstrand_config: Dict[str, object] | None = None,
     region_filters: Dict[str, List[Tuple[int, int]]] | None = None,
     non_overlapping: bool = False,
     max_motif_mismatches: int = 0,
@@ -1784,6 +2556,8 @@ def scan_combined_windows(
             "combined",
             exclude_motifs=exclude_motifs,
             palindrome_config=palindrome_config,
+            intrastrand_config=intrastrand_config,
+            interstrand_config=interstrand_config,
             region_filters=region_filters,
             max_motif_mismatches=max_motif_mismatches,
             self_comp_constraints=self_comp_constraints,
@@ -1828,6 +2602,44 @@ def scan_with_config(
         "enabled": bool(config.get("palindrome_required")),
         "min_len": int(config.get("palindrome_min_len", 0) or 0),
     }
+    intrastrand_config = {
+        "enabled": bool(config.get("intrastrand_required")),
+        "min_len": int(config.get("intrastrand_min_len", 0) or 0),
+        "max_len": config.get("intrastrand_max_len"),
+        "mismatches": int(config.get("intrastrand_mismatches", 0) or 0),
+        "gap_min": int(config.get("intrastrand_gap_min", 0) or 0),
+        "gap_max": config.get("intrastrand_gap_max"),
+    }
+    if intrastrand_config["max_len"] is not None:
+        try:
+            intrastrand_config["max_len"] = int(intrastrand_config["max_len"])
+        except (ValueError, TypeError):
+            intrastrand_config["max_len"] = None
+    if intrastrand_config["gap_max"] is not None:
+        try:
+            intrastrand_config["gap_max"] = int(intrastrand_config["gap_max"])
+        except (ValueError, TypeError):
+            intrastrand_config["gap_max"] = None
+
+    interstrand_config = {
+        "enabled": bool(config.get("interstrand_required")),
+        "min_len": int(config.get("interstrand_min_len", 0) or 0),
+        "max_len": config.get("interstrand_max_len"),
+        "mismatches": int(config.get("interstrand_mismatches", 0) or 0),
+        "gap_min": int(config.get("interstrand_gap_min", 0) or 0),
+        "gap_max": config.get("interstrand_gap_max"),
+    }
+    if interstrand_config["max_len"] is not None:
+        try:
+            interstrand_config["max_len"] = int(interstrand_config["max_len"])
+        except (ValueError, TypeError):
+            interstrand_config["max_len"] = None
+    if interstrand_config["gap_max"] is not None:
+        try:
+            interstrand_config["gap_max"] = int(interstrand_config["gap_max"])
+        except (ValueError, TypeError):
+            interstrand_config["gap_max"] = None
+
     runtime_options: RuntimeOptions | None = config.get("runtime_options")
     max_motif_mismatches = int(config.get("max_motif_mismatches", 0) or 0)
     self_comp_constraints = config.get("self_comp_constraints")
@@ -1844,6 +2656,8 @@ def scan_with_config(
                 strand_label="+",
                 exclude_motifs=exclude_motifs,
                 palindrome_config=palindrome_config,
+                intrastrand_config=intrastrand_config,
+                interstrand_config=interstrand_config,
                 region_filters=region_filters,
                 non_overlapping=non_overlapping,
                 runtime_options=runtime_options,
@@ -1866,6 +2680,8 @@ def scan_with_config(
                 coord_transform=_reverse_coord_transform(len(sequence)),
                 exclude_motifs=exclude_motifs,
                 palindrome_config=palindrome_config,
+                intrastrand_config=intrastrand_config,
+                interstrand_config=interstrand_config,
                 region_filters=region_filters,
                 non_overlapping=non_overlapping,
                 runtime_options=runtime_options,
@@ -1887,6 +2703,8 @@ def scan_with_config(
                 repeat_constraints,
                 exclude_motifs=exclude_motifs,
                 palindrome_config=palindrome_config,
+                intrastrand_config=intrastrand_config,
+                interstrand_config=interstrand_config,
                 region_filters=region_filters,
                 non_overlapping=non_overlapping,
                 max_motif_mismatches=max_motif_mismatches,
@@ -1900,6 +2718,221 @@ def format_kv_pairs(pairs: Sequence[Tuple[str, object]], formatter) -> str:
     if not pairs:
         return "NA"
     return ";".join(formatter(key, value) for key, value in pairs)
+
+
+def index_fasta_records(
+    fasta_path: Path, record_prefixes: Sequence[str] | None
+) -> List[Tuple[str, int, int]]:
+    """Byte-offset index of matching FASTA records: (seq_id, data_start, data_end).
+
+    ``data_start``/``data_end`` bound the record's sequence lines (header excluded).
+    Building this lets each worker read its own sequence from disk, so we never
+    ship 250 MB chromosomes through multiprocessing pipes (which exhausts Windows
+    I/O resources -> WinError 1450). One pass, negligible memory.
+    """
+    normalized = tuple(p.upper() for p in record_prefixes) if record_prefixes else None
+    records: List[Tuple[str, int, int]] = []
+    cur_id: str | None = None
+    cur_start = 0
+    offset = 0
+    with open(fasta_path, "rb") as handle:
+        for raw in handle:
+            n = len(raw)
+            stripped = raw.strip()
+            if stripped[:1] == b">":
+                if cur_id is not None:
+                    records.append((cur_id, cur_start, offset))
+                header = stripped.decode("utf-8", "replace")
+                include = normalized is None or any(header.upper().startswith(p) for p in normalized)
+                if include and len(header) > 1:
+                    cur_id = header[1:].split()[0]
+                    cur_start = offset + n
+                else:
+                    cur_id = None
+            offset += n
+        if cur_id is not None:
+            records.append((cur_id, cur_start, offset))
+    return records
+
+
+def read_record_sequence(fasta_path: Path | str, data_start: int, data_end: int) -> str:
+    """Read and normalise one record's sequence, identically to iter_nc_sequences
+    (each line stripped + uppercased, blank/header lines skipped, concatenated)."""
+    with open(fasta_path, "rb") as handle:
+        handle.seek(data_start)
+        raw = handle.read(data_end - data_start)
+    chunks: List[str] = []
+    for line in raw.split(b"\n"):
+        stripped = line.strip()
+        if stripped and stripped[:1] != b">":
+            chunks.append(stripped.decode("utf-8", "replace").upper())
+    return "".join(chunks)
+
+
+def _scan_sequence_file_worker(payload):
+    """Worker that reads its sequence from the FASTA (tiny payload, no big pipe
+    transfer), then scans it."""
+    (
+        fasta_path,
+        seq_id,
+        data_start,
+        data_end,
+        scan_config,
+        motifs,
+        base_constraints,
+        repeat_constraints,
+        exclude_motifs,
+    ) = payload
+    sequence = read_record_sequence(fasta_path, data_start, data_end)
+    hits = scan_with_config(
+        seq_id, sequence, scan_config, motifs, base_constraints,
+        repeat_constraints, exclude_motifs=exclude_motifs,
+    )
+    return seq_id, hits
+
+
+def determine_is_rna_records(
+    sequence_type: str, fasta_path: Path, records: Sequence[Tuple[str, int, int]]
+) -> bool:
+    """RNA-alphabet decision when sequences live on disk (sample the first records)."""
+    if sequence_type == "rna":
+        return True
+    if sequence_type == "dna":
+        return False
+    for seq_id, start, end in records[:3]:
+        sample = read_record_sequence(fasta_path, start, min(end, start + 100_000))
+        if sample.count("U") > 0 and sample.count("U") >= sample.count("T"):
+            return True
+    return False
+
+
+_RNA_SEQUENCE_FIELDS = (
+    "window_sequence",
+    "motif_sequence",
+    "palindrome_hairpin_sequence",
+    "intrastrand_sequence",
+    "interstrand_sequence",
+)
+
+
+def determine_is_rna(sequence_type: str, sequences: Sequence[Tuple[str, str]]) -> bool:
+    """Decide whether output sequences should use the RNA (U) alphabet."""
+    if sequence_type == "rna":
+        return True
+    if sequence_type == "dna":
+        return False
+    # auto: sample the loaded sequences for uracil.
+    for _seq_id, seq in sequences[:5]:
+        sample = seq[:100000].upper()
+        if sample.count("U") > 0 and sample.count("U") >= sample.count("T"):
+            return True
+    return False
+
+
+def apply_rna_alphabet(rows: Sequence[Dict[str, object]]) -> None:
+    """Render sequence-bearing output columns in the RNA alphabet (T->U).
+
+    Analysis is always done in T-space, so derived sequences (motifs, reverse
+    strand, complement regions) come back as T; this converts them to U for the
+    report when the input is RNA."""
+    for row in rows:
+        for field_name in _RNA_SEQUENCE_FIELDS:
+            value = row.get(field_name)
+            if isinstance(value, str) and value and value != "NA":
+                row[field_name] = value.replace("T", "U").replace("t", "u")
+
+
+class StreamingHitWriter:
+    """Append hit rows to a JSONL sidecar, flushing+fsyncing periodically.
+
+    The JSONL is the crash-survival artifact: every line is a complete, valid
+    hit record, so an interrupted run leaves a readable file. ``tell()`` returns
+    the on-disk byte offset after a flush, which the checkpoint records so a
+    resumed run can truncate any partially written tail.
+    """
+
+    def __init__(self, path: Path, flush_every: int = 5000, append: bool = False) -> None:
+        self.path = path
+        self.flush_every = max(1, int(flush_every))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = path.open("a" if append else "w", encoding="utf-8", newline="\n")
+        self._buffer: List[str] = []
+        self.written = 0
+
+    def write(self, row: Dict[str, object]) -> None:
+        self._buffer.append(json.dumps(row, separators=(",", ":")))
+        self.written += 1
+        if len(self._buffer) >= self.flush_every:
+            self.flush()
+
+    def flush(self) -> None:
+        if self._buffer:
+            self._handle.write("\n".join(self._buffer) + "\n")
+            self._buffer.clear()
+        self._handle.flush()
+        os.fsync(self._handle.fileno())
+
+    def tell(self) -> int:
+        self.flush()
+        return self._handle.tell()
+
+    def close(self) -> None:
+        self.flush()
+        self._handle.close()
+
+
+def scan_params_signature(args: argparse.Namespace) -> str:
+    """Stable hash of the search parameters so a resume refuses mismatched runs."""
+    import hashlib
+
+    relevant = {
+        k: v
+        for k, v in sorted(vars(args).items())
+        if k not in {"stream_output", "checkpoint", "flush_every", "restart", "workers", "output_name", "output_prefix"}
+    }
+    blob = json.dumps(relevant, sort_keys=True, default=str)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()
+
+
+def load_checkpoint(path: Path, signature: str) -> Tuple[Set[str], int]:
+    """Return (completed_sequence_ids, jsonl_byte_offset) from a matching checkpoint."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return set(), 0
+    if data.get("signature") != signature:
+        print(
+            "[stream] existing checkpoint was produced with different search parameters; "
+            "ignoring it (use --restart to overwrite).",
+            file=sys.stderr,
+        )
+        return set(), 0
+    return set(data.get("completed", [])), int(data.get("jsonl_bytes", 0))
+
+
+def save_checkpoint(path: Path, signature: str, completed: Set[str], jsonl_bytes: int) -> None:
+    """Atomically persist resume state (temp file + replace)."""
+    payload = {"signature": signature, "completed": sorted(completed), "jsonl_bytes": jsonl_bytes}
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload), encoding="utf-8")
+    tmp.replace(path)
+
+
+def finalize_stream_to_tsv(jsonl_path: Path, output_dir: Path, output_prefix: str) -> int:
+    """Reload the streamed JSONL hits and write the canonical TSV via write_outputs.
+
+    Reusing write_outputs guarantees the finalized TSV is byte-for-byte identical
+    to a non-streamed run with the same hits and column rules.
+    """
+    rows: List[Dict[str, object]] = []
+    if jsonl_path.is_file():
+        with jsonl_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if line:
+                    rows.append(json.loads(line))
+    write_outputs(rows, output_dir, output_prefix)
+    return len(rows)
 
 
 def write_outputs(rows: Sequence[Dict[str, object]], output_dir: Path, output_prefix: str) -> None:
@@ -1942,6 +2975,25 @@ def write_outputs(rows: Sequence[Dict[str, object]], output_dir: Path, output_pr
             "palindrome_hairpin_start", "palindrome_hairpin_end"
         ])
 
+    show_intra = has_useful_data("intrastrand_length")
+    if show_intra:
+        headers.extend([
+            "intrastrand_sequence", "intrastrand_length",
+            "intrastrand_start1", "intrastrand_end1",
+            "intrastrand_start2", "intrastrand_end2"
+        ])
+        
+    show_inter = has_useful_data("interstrand_length")
+    if show_inter:
+        headers.extend([
+            "interstrand_sequence", "interstrand_length",
+            "interstrand_start1", "interstrand_end1",
+            "interstrand_start2", "interstrand_end2"
+        ])
+
+    if any("best_g4hunter" in row for row in rows):
+        headers.append("best_g4hunter")
+
     formatted_rows: List[List[str]] = []
     for row in rows:
         formatted_row = []
@@ -1952,7 +3004,9 @@ def write_outputs(rows: Sequence[Dict[str, object]], output_dir: Path, output_pr
                 formatted_row.append(format_kv_pairs(row["base_percentages"], lambda k, v: f"{k}={v:.2f}"))
             elif h == "max_consecutive_runs":
                 formatted_row.append(format_kv_pairs(row["max_runs"], lambda k, v: f"{k}={v}"))
-            elif h in ("is_self_complementary", "palindrome_hairpin_length", "palindrome_hairpin_start", "palindrome_hairpin_end"):
+            elif h in ("is_self_complementary", "palindrome_hairpin_length", "palindrome_hairpin_start", "palindrome_hairpin_end",
+                       "intrastrand_length", "intrastrand_start1", "intrastrand_end1", "intrastrand_start2", "intrastrand_end2",
+                       "interstrand_length", "interstrand_start1", "interstrand_end1", "interstrand_start2", "interstrand_end2"):
                 val = row.get(h, "NA")
                 formatted_row.append(str(val) if val is not None else "NA")
             else:
@@ -1986,6 +3040,151 @@ def _scan_sequence_worker(payload):
         exclude_motifs=exclude_motifs,
     )
     return seq_id, hits
+
+
+def run_streaming_scan(
+    args: argparse.Namespace,
+    fasta_path: Path,
+    records: Sequence[Tuple[str, int, int]],
+    scan_config: Dict[str, object],
+    motifs: Sequence[MotifConstraint],
+    base_constraints: Dict[str, Tuple[float, float]],
+    repeat_constraints: Dict[str, int],
+    exclude_motifs: Sequence[ExcludeMotifConstraint] | None,
+    output_dir: Path,
+    allowed_sequences: Set[str],
+    region_filters: Dict[str, List[Tuple[int, int]]],
+    chromosome_filter: Set[int] | None,
+    worker_count: int,
+) -> int:
+    """Scan with incremental, crash-safe output and resume support.
+
+    Sequences are processed in a deterministic (FASTA input) order; each one's
+    hits are streamed to a JSONL sidecar and a checkpoint is written afterwards,
+    so an interrupted run resumes from the next unfinished sequence with no
+    duplicate rows. The canonical TSV is produced at the end via write_outputs.
+    """
+    output_prefix = args.output_prefix
+    jsonl_path = output_dir / f"{output_prefix}.partial.jsonl"
+    checkpoint_path = (
+        Path(args.checkpoint) if args.checkpoint else output_dir / f"{output_prefix}.checkpoint.json"
+    )
+    signature = scan_params_signature(args)
+    is_rna = determine_is_rna_records(args.sequence_type, fasta_path, records)
+    min_g4 = args.min_g4hunter
+    fasta_str = str(fasta_path)
+
+    # Deterministic work list (same record filters as the standard path). Holds
+    # byte offsets, not sequences, so workers read from disk (no big pipe sends).
+    work: List[Tuple[str, int, int]] = []
+    for seq_id, data_start, data_end in records:
+        nid = normalize_seq_name(seq_id)
+        if allowed_sequences and nid not in allowed_sequences:
+            continue
+        if region_filters and args.region and nid not in region_filters:
+            continue
+        if chromosome_filter and not sequence_matches_chromosome_filter(nid, chromosome_filter):
+            continue
+        work.append((seq_id, data_start, data_end))
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    completed: Set[str] = set()
+    append = False
+    if args.restart:
+        for stale in (jsonl_path, checkpoint_path):
+            try:
+                stale.unlink()
+            except FileNotFoundError:
+                pass
+    else:
+        completed, jsonl_bytes = load_checkpoint(checkpoint_path, signature)
+        if completed and jsonl_path.exists():
+            with jsonl_path.open("r+b") as handle:
+                handle.truncate(jsonl_bytes)  # drop any partially written tail
+            append = True
+            print(
+                f"[stream] resuming: {len(completed)} sequence(s) already done; "
+                f"JSONL truncated to {jsonl_bytes} bytes.",
+                flush=True,
+            )
+
+    pending = [(sid, s, e) for (sid, s, e) in work if sid not in completed]
+    writer = StreamingHitWriter(jsonl_path, args.flush_every, append=append)
+
+    def emit(seq_id: str, hits: Sequence[Dict[str, object]]) -> int:
+        emitted = 0
+        for hit in hits:
+            if min_g4 is not None:
+                motif_seq = hit.get("motif_sequence") or ""
+                score_seq = (
+                    motif_seq
+                    if isinstance(motif_seq, str) and motif_seq and motif_seq != "NA"
+                    else str(hit.get("window_sequence") or "")
+                )
+                score = g4hunter_best_score(score_seq)
+                hit["best_g4hunter"] = round(score, 4)
+                if score < min_g4:
+                    continue
+            if is_rna:
+                apply_rna_alphabet([hit])
+            writer.write(hit)
+            emitted += 1
+        return emitted
+
+    total = len(work)
+    try:
+        if worker_count == 1 or len(pending) <= 1:
+            for seq_id, data_start, data_end in pending:
+                sequence = read_record_sequence(fasta_path, data_start, data_end)
+                hits = scan_with_config(
+                    seq_id, sequence, scan_config, motifs, base_constraints,
+                    repeat_constraints, exclude_motifs=exclude_motifs,
+                )
+                n = emit(seq_id, hits)
+                completed.add(seq_id)
+                save_checkpoint(checkpoint_path, signature, completed, writer.tell())
+                print(f"[stream] {len(completed)}/{total} {seq_id}: {n} hits (checkpointed)", flush=True)
+        else:
+            # Workers read their sequence from disk (tiny payloads -> no Windows
+            # WinError 1450), and a FIFO window preserves the deterministic
+            # submission/emit order needed for safe resume.
+            import collections
+
+            max_in_flight = max(2, worker_count * 2)
+            pending_iter = iter(pending)
+            fifo: "collections.deque" = collections.deque()
+            with ProcessPoolExecutor(max_workers=worker_count) as executor:
+                def _submit_next_stream() -> bool:
+                    try:
+                        sid, d_start, d_end = next(pending_iter)
+                    except StopIteration:
+                        return False
+                    fut = executor.submit(
+                        _scan_sequence_file_worker,
+                        (fasta_str, sid, d_start, d_end, scan_config, motifs,
+                         base_constraints, repeat_constraints, exclude_motifs),
+                    )
+                    fifo.append((sid, fut))
+                    return True
+
+                for _ in range(max_in_flight):
+                    if not _submit_next_stream():
+                        break
+                while fifo:
+                    seq_id, future = fifo.popleft()  # next in submission order
+                    _sid, hits = future.result()
+                    n = emit(seq_id, hits)
+                    completed.add(seq_id)
+                    save_checkpoint(checkpoint_path, signature, completed, writer.tell())
+                    print(f"[stream] {len(completed)}/{total} {seq_id}: {n} hits (checkpointed)", flush=True)
+                    _submit_next_stream()
+    finally:
+        writer.close()
+
+    n_rows = finalize_stream_to_tsv(jsonl_path, output_dir, output_prefix)
+    print(f"[stream] finalized {n_rows} hits to {output_dir / (output_prefix + '.tsv')}.")
+    print(f"[stream] crash-safe sidecar: {jsonl_path} | checkpoint: {checkpoint_path}")
+    return 0
 
 
 def main() -> int:
@@ -2036,7 +3235,10 @@ def main() -> int:
     # Use explicitly requested classes, or None (meaning scan all)
     sequence_classes = args.sequence_classes or None
     record_prefixes = prefixes_for_classes(sequence_classes)
-    sequences = list(iter_nc_sequences(fasta_path, record_prefixes))
+    # Index record byte-offsets instead of loading the whole genome into RAM.
+    # Workers read their own sequence from disk, so nothing large goes through
+    # the multiprocessing pipes (avoids Windows WinError 1450 on big chromosomes).
+    records = index_fasta_records(fasta_path, record_prefixes)
     allowed_sequences = {normalize_seq_name(seq) for seq in args.sequence_id if seq}
     allowed_sequences = {seq for seq in allowed_sequences if seq}
     region_filters = parse_region_specs(parser, args.region) if args.region else {}
@@ -2047,7 +3249,81 @@ def main() -> int:
         worker_count = os.cpu_count() or 1
     worker_count = max(1, worker_count)
     all_hits: List[Dict[str, object]] = []
-    runtime_options = RuntimeOptions(use_gpu=bool(args.use_gpu), vectorized_base=bool(args.vectorized_base))
+    gpu_caps = detect_gpu_capabilities()
+    requested_engine = getattr(args, "engine", "auto")
+    if requested_engine == "gpu" and not gpu_caps["available"] and not (args.use_gpu and requested_engine == "auto"):
+        print(
+            f"[engine] GPU requested but unavailable ({gpu_caps['reason']}); falling back to CPU.",
+            file=sys.stderr,
+        )
+    engine = resolve_engine(requested_engine, bool(args.use_gpu), gpu_caps)
+    if gpu_caps["available"]:
+        vram_mb = int(gpu_caps["total_mem_bytes"]) // (1024 * 1024)
+        print(
+            f"[engine] mode={engine} gpu='{gpu_caps['device']}' "
+            f"cc={gpu_caps['compute_capability']} vram={vram_mb}MB",
+            flush=True,
+        )
+    else:
+        print(f"[engine] mode={engine} (no CUDA device: {gpu_caps['reason']})", flush=True)
+    if engine == "gpu":
+        try:
+            import mako_gpu
+
+            if not mako_gpu.kernels_available():
+                print(
+                    "[engine] GPU selected but CUDA kernels could not be compiled "
+                    f"({mako_gpu.kernels_status().get('kernel_reason')}); the scan "
+                    "will run on the CPU (results are identical, just not accelerated).",
+                    file=sys.stderr,
+                )
+                print(f"[engine] Fix: {mako_gpu.KERNEL_FIX_HINT}", file=sys.stderr)
+        except Exception:
+            pass
+        # GPU acceleration here is a candidate *prefilter*, not a full offload, so
+        # it only engages when the search has something it can pre-filter:
+        # base-content always, or (with --gpu-kernels) repeat caps / fixed-length
+        # motifs / require-complement. Tell the user when the GPU will sit idle.
+        gpu_kernels_on = bool(getattr(args, "gpu_kernels", False))
+        gpu_eligible = bool(base_constraints)
+        if gpu_kernels_on:
+            gpu_eligible = (
+                gpu_eligible
+                or bool(repeat_constraints)
+                or bool(_extract_fixed_motifs(motifs))
+                or bool(getattr(args, "require_intrastrand", False))
+                or bool(getattr(args, "require_interstrand", False))
+            )
+        if not gpu_eligible:
+            if not gpu_kernels_on:
+                print(
+                    "[engine] GPU will be IDLE for this search: without --gpu-kernels the GPU "
+                    "only accelerates --base-content filtering, which this search does not use. "
+                    "Tick 'Use custom CUDA kernels' (--gpu-kernels) to offload fixed-motif / "
+                    "repeat-cap prefiltering. Note: the motif scan itself always runs on the "
+                    "multi-core CPU (Cython) path; the GPU only narrows candidate windows.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "[engine] GPU has no offloadable filter in this search (no base-content / "
+                    "repeat cap / fixed-length motif / require-complement); the scan runs on "
+                    "the CPU path.",
+                    file=sys.stderr,
+                )
+        elif gpu_kernels_on and worker_count > 4:
+            print(
+                f"[engine] Note: --gpu-kernels with {worker_count} workers makes each worker "
+                "process build its own CUDA context (extra VRAM + first-use kernel compile) "
+                "and serialise on the single GPU. For GPU runs, fewer workers (e.g. "
+                "--workers 2-4) is usually faster.",
+                file=sys.stderr,
+            )
+    runtime_options = RuntimeOptions(
+        use_gpu=(engine == "gpu"),
+        vectorized_base=bool(args.vectorized_base),
+        gpu_kernels=bool(getattr(args, "gpu_kernels", False)),
+    )
     scan_config = {
         "window": args.window,
         "step": args.step,
@@ -2062,76 +3338,138 @@ def main() -> int:
         "region_filters": region_filters,
         "palindrome_required": bool(args.require_palindrome),
         "palindrome_min_len": args.palindrome_min_len,
+        "intrastrand_required": bool(args.require_intrastrand),
+        "intrastrand_min_len": args.intrastrand_min_len,
+        "intrastrand_max_len": args.intrastrand_max_len,
+        "intrastrand_mismatches": args.intrastrand_mismatches,
+        "intrastrand_gap_min": args.intrastrand_gap_min,
+        "intrastrand_gap_max": args.intrastrand_gap_max,
+        "interstrand_required": bool(args.require_interstrand),
+        "interstrand_min_len": args.interstrand_min_len,
+        "interstrand_max_len": args.interstrand_max_len,
+        "interstrand_mismatches": args.interstrand_mismatches,
+        "interstrand_gap_min": args.interstrand_gap_min,
+        "interstrand_gap_max": args.interstrand_gap_max,
         "runtime_options": runtime_options,
         "max_motif_mismatches": int(args.motif_mismatches),
         "self_comp_constraints": self_comp_constraints,
     }
     output_dir = Path(f"output_{args.output_name}")
-    if not sequences:
+    if not records:
         write_outputs(all_hits, output_dir, args.output_prefix)
-        class_text = ", ".join(sequence_classes)
+        class_text = ", ".join(sequence_classes) if sequence_classes else "all"
         print(
             f"No sequences matched the requested record classes ({class_text}); no output rows written.",
             file=sys.stderr,
         )
         return 0
-    total_sequences = len(sequences)
+    if args.stream_output or args.checkpoint:
+        return run_streaming_scan(
+            args, fasta_path, records, scan_config, motifs, base_constraints, repeat_constraints,
+            exclude_motifs, output_dir, allowed_sequences, region_filters,
+            chromosome_filter, worker_count,
+        )
+
+    # Apply per-record filters once (sequence-id / region / chromosome).
+    work: List[Tuple[str, int, int]] = []
+    for seq_id, data_start, data_end in records:
+        normalized_id = normalize_seq_name(seq_id)
+        if allowed_sequences and normalized_id not in allowed_sequences:
+            continue
+        if region_filters and args.region and normalized_id not in region_filters:
+            continue
+        if chromosome_filter and not sequence_matches_chromosome_filter(normalized_id, chromosome_filter):
+            continue
+        work.append((seq_id, data_start, data_end))
+    total_records = len(work)
+    total_bases = sum(end - start for _, start, end in work) or 1
+    completed_bases = 0
     print(
-        f"[scanner] Processing {total_sequences} sequences with {worker_count} worker(s)...",
+        f"[scanner] Processing {total_records} sequences with {worker_count} worker(s)...",
         flush=True,
     )
-    if worker_count == 1 or total_sequences == 1:
-        for index, (seq_id, sequence) in enumerate(sequences, 1):
-            normalized_id = normalize_seq_name(seq_id)
-            if allowed_sequences and normalized_id not in allowed_sequences:
-                continue
-            if region_filters and args.region and normalized_id not in region_filters:
-                continue
-            if chromosome_filter and not sequence_matches_chromosome_filter(normalized_id, chromosome_filter):
-                continue
-            print(f"[scanner] Scanning {seq_id} ({index}/{total_sequences})", flush=True)
+    if worker_count == 1 or total_records <= 1:
+        for index, (seq_id, data_start, data_end) in enumerate(work, 1):
+            sequence = read_record_sequence(fasta_path, data_start, data_end)
             seq_hits = scan_with_config(
-                seq_id,
-                sequence,
-                scan_config,
-                motifs,
-                base_constraints,
-                repeat_constraints,
-                exclude_motifs=exclude_motifs,
+                seq_id, sequence, scan_config, motifs, base_constraints,
+                repeat_constraints, exclude_motifs=exclude_motifs,
             )
             all_hits.extend(seq_hits)
-            print(f"[scanner] Completed {seq_id}: {len(seq_hits)} hits", flush=True)
-    else:
-        payloads = []
-        for seq_id, sequence in sequences:
-            normalized_id = normalize_seq_name(seq_id)
-            if allowed_sequences and normalized_id not in allowed_sequences:
-                continue
-            if region_filters and args.region and normalized_id not in region_filters:
-                continue
-            if chromosome_filter and not sequence_matches_chromosome_filter(normalized_id, chromosome_filter):
-                continue
-            payloads.append(
-                (
-                    seq_id,
-                    sequence,
-                    scan_config,
-                    motifs,
-                    base_constraints,
-                    repeat_constraints,
-                    exclude_motifs,
-                )
+            completed_bases += data_end - data_start
+            percent = (completed_bases / total_bases) * 100
+            print(
+                f"[scanner] Progress: {percent:.2f}% - Completed {seq_id}: "
+                f"{len(seq_hits)} hits ({index}/{total_records})",
+                flush=True,
             )
+    else:
+        # Workers read their own sequence from disk, so payloads are a few bytes
+        # and no large chromosome ever crosses a multiprocessing pipe (this is the
+        # fix for Windows WinError 1450). In-flight tasks are still bounded.
+        max_in_flight = max(2, worker_count * 2)
+        work_iter = iter(work)
+        done_index = 0
+        fasta_str = str(fasta_path)
         with ProcessPoolExecutor(max_workers=worker_count) as executor:
-            for index, (seq_id, seq_hits) in enumerate(
-                executor.map(_scan_sequence_worker, payloads), 1
-            ):
-                all_hits.extend(seq_hits)
-                print(
-                    f"[scanner] Completed {seq_id}: {len(seq_hits)} hits "
-                    f"({index}/{total_sequences})",
-                    flush=True,
+            in_flight: Dict[object, Tuple[str, int]] = {}
+
+            def _submit_next() -> bool:
+                try:
+                    sid, d_start, d_end = next(work_iter)
+                except StopIteration:
+                    return False
+                fut = executor.submit(
+                    _scan_sequence_file_worker,
+                    (fasta_str, sid, d_start, d_end, scan_config, motifs,
+                     base_constraints, repeat_constraints, exclude_motifs),
                 )
+                in_flight[fut] = (sid, d_end - d_start)
+                return True
+
+            for _ in range(max_in_flight):
+                if not _submit_next():
+                    break
+            while in_flight:
+                finished, _pending = wait(set(in_flight), return_when=FIRST_COMPLETED)
+                for future in finished:
+                    seq_id, seq_size = in_flight.pop(future)
+                    _res_seq_id, seq_hits = future.result()
+                    all_hits.extend(seq_hits)
+                    done_index += 1
+                    completed_bases += seq_size
+                    percent = (completed_bases / total_bases) * 100
+                    print(
+                        f"[scanner] Progress: {percent:.2f}% - Completed {seq_id}: "
+                        f"{len(seq_hits)} hits ({done_index}/{total_records})",
+                        flush=True,
+                    )
+                    _submit_next()
+    # End-stage: optional G4Hunter filter on the matched motifs, then RNA output.
+    if args.min_g4hunter is not None:
+        kept: List[Dict[str, object]] = []
+        for hit in all_hits:
+            motif_seq = hit.get("motif_sequence") or ""
+            score_seq = (
+                motif_seq
+                if isinstance(motif_seq, str) and motif_seq and motif_seq != "NA"
+                else str(hit.get("window_sequence") or "")
+            )
+            score = g4hunter_best_score(score_seq)
+            hit["best_g4hunter"] = round(score, 4)
+            if score >= args.min_g4hunter:
+                kept.append(hit)
+        removed = len(all_hits) - len(kept)
+        all_hits = kept
+        print(
+            f"[scanner] G4Hunter filter (best score >= {args.min_g4hunter}): "
+            f"kept {len(all_hits)}, removed {removed}.",
+            flush=True,
+        )
+
+    if determine_is_rna_records(args.sequence_type, fasta_path, records):
+        apply_rna_alphabet(all_hits)
+
     write_outputs(all_hits, output_dir, args.output_prefix)
     if not all_hits:
         print("No windows matched the provided criteria.", file=sys.stderr)
